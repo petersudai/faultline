@@ -4,6 +4,7 @@ import { ModelReview, Review, type PrRef } from "../review/schema.js";
 import { classifyRisk } from "../review/classify.js";
 import { LIMITS } from "../config.js";
 import type { PrMetadata } from "../github/client.js";
+import type { LlmLike } from "../llm/types.js";
 
 /**
  * The BASELINE: one LLM call, title + body + raw diff, nothing else. Same output
@@ -36,16 +37,29 @@ Respond with ONLY a JSON object (no prose, no code fence needed) of the form:
 Only report concerns you can justify from the diff itself. If nothing is
 concerning, return "findings": [].`;
 
+function mustHaveKey(): string {
+  throw new Error("runBaseline: provide either `apiKey` or an `llm` instance");
+}
+
 export interface BaselineArgs {
   meta: PrMetadata;
   diff: string;
-  apiKey: string;
+  /** intended model id (recorded in meta even when an injected client is used) */
   model: string;
+  /** required unless `llm` is injected */
+  apiKey?: string;
+  /** test double / alternate client */
+  llm?: LlmLike;
 }
 
 export async function runBaseline(args: BaselineArgs): Promise<Review> {
   const started = Date.now();
-  const llm = new LlmClient({ apiKey: args.apiKey, model: args.model });
+  const llm: LlmLike =
+    args.llm ??
+    new LlmClient({
+      apiKey: args.apiKey ?? mustHaveKey(),
+      model: args.model,
+    });
 
   const diffBudgetChars = LIMITS.maxInlineDiffLines * 200;
   const diff =

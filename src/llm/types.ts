@@ -21,3 +21,21 @@ export interface LlmResult {
   inputTokens: number;
   outputTokens: number;
 }
+
+export interface LlmUsage {
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+}
+
+/** Common surface of the real client and the test double. */
+export interface LlmLike {
+  readonly model: string;
+  readonly usage: LlmUsage;
+  call(params: {
+    system: string;
+    messages: Message[];
+    tools?: ToolSpec[];
+    maxTokens?: number;
+  }): Promise<LlmResult>;
+}

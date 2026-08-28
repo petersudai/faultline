@@ -1,0 +1,9 @@
+[
+  {
+    "filename": "src/context.ts",
+    "status": "modified",
+    "additions": 14,
+    "deletions": 6,
+    "patch": "@@ -657,6 +657,10 @@ export class Context<\n     headers?: HeaderRecord\n   ): ReturnType<BodyRespond> => this.#newResponse(data, arg, headers) as ReturnType<BodyRespond>\n \n+  #useFastPath(): boolean {\n+    return !this.#preparedHeaders && !this.#status && !this.finalized\n+  }\n+\n   /**\n    * `.text()` can render text as `Content-Type:text/plain`.\n    *\n@@ -674,7 +678,7 @@ export class Context<\n     arg?: ContentfulStatusCode | ResponseOrInit,\n     headers?: HeaderRecord\n   ): ReturnType<TextRespond> => {\n-    return !this.#preparedHeaders && !this.#status && !arg && !headers && !this.finalized\n+    return this.#useFastPath() && !arg && !headers\n       ? (new Response(text) as ReturnType<TextRespond>)\n       : (this.#newResponse(\n           text,\n@@ -703,11 +707,15 @@ export class Context<\n     arg?: U | ResponseOrInit<U>,\n     headers?: HeaderRecord\n   ): JSONRespondReturn<T, U> => {\n-    return this.#newResponse(\n-      JSON.stringify(object),\n-      arg,\n-      setDefaultContentType('application/json', headers)\n-    ) /* eslint-disable @typescript-eslint/no-explicit-any */ as any\n+    return (\n+      this.#useFastPath() && !arg && !headers\n+        ? Response.json(object)\n+        : this.#newResponse(\n+            JSON.stringify(object),\n+            arg,\n+            setDefaultContentType('application/json', headers)\n+          )\n+    ) as JSONRespondReturn<T, U>\n   }\n \n   html: HTMLRespond = ("
+  }
+]

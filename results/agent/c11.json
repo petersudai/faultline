@@ -1,0 +1,33 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3888,
+    "title": "feat(router): support greedy matches with subsequent static components.",
+    "baseSha": "438983b3bb3d459bf9d9d2e5adf1d21a7e6588d8",
+    "headSha": "5f41ceeb32fe23e34a4a5f3f25e4b4b155bcf457",
+    "filesChanged": 6,
+    "additions": 138,
+    "deletions": 29
+  },
+  "summary": "Fake review of \"feat(router): support greedy matches with subsequent static components\".",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/minor.ts",
+      "line": 1,
+      "category": "other",
+      "rationale": "Minor stylistic note.",
+      "suggestedCheck": "None."
+    }
+  ],
+  "risk": "Low",
+  "meta": {
+    "mode": "baseline",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 120,
+    "outputTokens": 60,
+    "costUsd": 0,
+    "wallMs": 1,
+    "toolCalls": 0
+  }
+}

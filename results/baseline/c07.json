@@ -1,0 +1,33 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3800,
+    "title": "fix(context): single body overrides other returns",
+    "baseSha": "fa6f51bb1b110cddc7dc41cb7e531fab27fe871f",
+    "headSha": "92a1a129e6e9f430f93e35d217a7bd2a324c85cb",
+    "filesChanged": 3,
+    "additions": 36,
+    "deletions": 11
+  },
+  "summary": "Fake review of \"fix(context): single body overrides other returns\".",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/minor.ts",
+      "line": 1,
+      "category": "other",
+      "rationale": "Minor stylistic note.",
+      "suggestedCheck": "None."
+    }
+  ],
+  "risk": "Low",
+  "meta": {
+    "mode": "baseline",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 120,
+    "outputTokens": 60,
+    "costUsd": 0,
+    "wallMs": 0,
+    "toolCalls": 0
+  }
+}

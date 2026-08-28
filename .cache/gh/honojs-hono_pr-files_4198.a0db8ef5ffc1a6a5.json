@@ -1,0 +1,23 @@
+[
+  {
+    "filename": "src/middleware/etag/digest.ts",
+    "status": "modified",
+    "additions": 12,
+    "deletions": 10,
+    "patch": "@@ -9,23 +9,25 @@ const mergeBuffers = (buffer1: ArrayBuffer | undefined, buffer2: Uint8Array): Ui\n }\n \n export const generateDigest = async (\n-  stream: ReadableStream<Uint8Array> | null,\n+  input: ReadableStream<Uint8Array> | ArrayBuffer | null,\n   generator: (body: Uint8Array) => ArrayBuffer | Promise<ArrayBuffer>\n ): Promise<string | null> => {\n-  if (!stream) {\n+  if (!input) {\n     return null\n   }\n \n   let result: ArrayBuffer | undefined = undefined\n-\n-  const reader = stream.getReader()\n-  for (;;) {\n-    const { value, done } = await reader.read()\n-    if (done) {\n-      break\n+  if (input instanceof ArrayBuffer) {\n+    result = await generator(new Uint8Array(input))\n+  } else {\n+    const reader = input.getReader()\n+    for (;;) {\n+      const { value, done } = await reader.read()\n+      if (done) {\n+        break\n+      }\n+      result = await generator(mergeBuffers(result, value))\n     }\n-\n-    result = await generator(mergeBuffers(result, value))\n   }\n \n   if (!result) {"
+  },
+  {
+    "filename": "src/middleware/etag/index.test.ts",
+    "status": "modified",
+    "additions": 23,
+    "deletions": 0,
+    "patch": "@@ -155,6 +155,29 @@ describe('Etag Middleware', () => {\n     expect(res.headers.get('ETag')).toBeNull()\n   })\n \n+  it('Should handle clone() not supported (Lambda-like environment)', async () => {\n+    const app = new Hono()\n+    app.use('/etag/*', etag())\n+    app.get('/etag/no-clone', (c) => {\n+      const originalResponse = c.text('Lambda test content')\n+      // Mock AWS Lambda environment where clone() doesn't work properly\n+      const mockResponse = new Response(originalResponse.body, {\n+        status: originalResponse.status,\n+        statusText: originalResponse.statusText,\n+        headers: originalResponse.headers,\n+      })\n+      // Override clone to throw error (AWS Lambda-like behavior)\n+      mockResponse.clone = () => {\n+        throw new Error('clone() not supported in AWS Lambda')\n+      }\n+      return mockResponse\n+    })\n+    const res = await app.request('/etag/no-clone')\n+    expect(res.status).toBe(200)\n+    expect(res.headers.get('ETag')).not.toBeNull()\n+    expect(await res.text()).toBe('Lambda test content')\n+  })\n+\n   it('Should return etag header - weak', async () => {\n     const app = new Hono()\n     app.use('/etag/*', etag({ weak: true }))"
+  },
+  {
+    "filename": "src/middleware/etag/index.ts",
+    "status": "modified",
+    "additions": 9,
+    "deletions": 1,
+    "patch": "@@ -93,7 +93,15 @@ export const etag = (options?: ETagOptions): MiddlewareHandler => {\n       if (!generator) {\n         return\n       }\n-      const hash = await generateDigest(res.clone().body, generator)\n+      let hash: string | null = null\n+      try {\n+        hash = await generateDigest(res.clone().body, generator)\n+      } catch {\n+        // Fallback for environments where res.clone() is not supported (e.g., AWS Lambda)\n+        const buffer = await res.arrayBuffer()\n+        hash = await generateDigest(buffer, generator)\n+        c.res = new Response(buffer, res)\n+      }\n       if (hash === null) {\n         return\n       }"
+  }
+]

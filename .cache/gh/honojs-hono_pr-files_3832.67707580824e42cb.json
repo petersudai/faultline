@@ -1,0 +1,23 @@
+[
+  {
+    "filename": "src/middleware/etag/digest.ts",
+    "status": "modified",
+    "additions": 3,
+    "deletions": 7,
+    "patch": "@@ -9,7 +9,8 @@ const mergeBuffers = (buffer1: ArrayBuffer | undefined, buffer2: Uint8Array): Ui\n }\n \n export const generateDigest = async (\n-  stream: ReadableStream<Uint8Array> | null\n+  stream: ReadableStream<Uint8Array> | null,\n+  generator: (body: Uint8Array) => ArrayBuffer | Promise<ArrayBuffer>\n ): Promise<string | null> => {\n   if (!stream || !crypto || !crypto.subtle) {\n     return null\n@@ -24,12 +25,7 @@ export const generateDigest = async (\n       break\n     }\n \n-    result = await crypto.subtle.digest(\n-      {\n-        name: 'SHA-1',\n-      },\n-      mergeBuffers(result, value)\n-    )\n+    result = await generator(mergeBuffers(result, value))\n   }\n \n   if (!result) {"
+  },
+  {
+    "filename": "src/middleware/etag/index.test.ts",
+    "status": "modified",
+    "additions": 33,
+    "deletions": 0,
+    "patch": "@@ -20,6 +20,39 @@ describe('Etag Middleware', () => {\n     expect(res.headers.get('ETag')).toBe('\"4515561204e8269cb4468d5b39288d8f2482dcfe\"')\n   })\n \n+  it('Should return etag header with another algorithm', async () => {\n+    const app = new Hono()\n+    app.use(\n+      '/etag/*',\n+      etag({\n+        generateDigest: (body) =>\n+          crypto.subtle.digest(\n+            {\n+              name: 'SHA-256',\n+            },\n+            body\n+          ),\n+      })\n+    )\n+    app.get('/etag/abc', (c) => {\n+      return c.text('Hono is cool')\n+    })\n+    app.get('/etag/def', (c) => {\n+      return c.json({ message: 'Hono is cool' })\n+    })\n+    let res = await app.request('http://localhost/etag/abc')\n+    expect(res.headers.get('ETag')).not.toBeFalsy()\n+    expect(res.headers.get('ETag')).toBe(\n+      '\"ee7e84f92c4f54fec768123ac23003a6eb8437db95bcfbfc35db477af1ccb49e\"'\n+    )\n+\n+    res = await app.request('http://localhost/etag/def')\n+    expect(res.headers.get('ETag')).not.toBeFalsy()\n+    expect(res.headers.get('ETag')).toBe(\n+      '\"6ae7438c67f07b60b2ab069dbce206b00d3528c690840a77e0222d37398a8547\"'\n+    )\n+  })\n+\n   it('Should return etag header - binary', async () => {\n     const app = new Hono()\n     app.use('/etag/*', etag())"
+  },
+  {
+    "filename": "src/middleware/etag/index.ts",
+    "status": "modified",
+    "additions": 14,
+    "deletions": 2,
+    "patch": "@@ -9,6 +9,7 @@ import { generateDigest } from './digest'\n type ETagOptions = {\n   retainedHeaders?: string[]\n   weak?: boolean\n+  generateDigest?: (body: Uint8Array) => ArrayBuffer | Promise<ArrayBuffer>\n }\n \n /**\n@@ -38,6 +39,9 @@ function etagMatches(etag: string, ifNoneMatch: string | null) {\n  * @param {ETagOptions} [options] - The options for the ETag middleware.\n  * @param {boolean} [options.weak=false] - Define using or not using a weak validation. If true is set, then `W/` is added to the prefix of the value.\n  * @param {string[]} [options.retainedHeaders=RETAINED_304_HEADERS] - The headers that you want to retain in the 304 Response.\n+ * @param {function(Uint8Array): ArrayBuffer | Promise<ArrayBuffer>} [options.generateDigest] -\n+ * A custom digest generation function. By default, it uses 'SHA-1'\n+ * This function is called with the response body as a `Uint8Array` and should return a hash as an `ArrayBuffer` or a Promise of one.\n  * @returns {MiddlewareHandler} The middleware handler function.\n  *\n  * @example\n@@ -53,6 +57,15 @@ function etagMatches(etag: string, ifNoneMatch: string | null) {\n export const etag = (options?: ETagOptions): MiddlewareHandler => {\n   const retainedHeaders = options?.retainedHeaders ?? RETAINED_304_HEADERS\n   const weak = options?.weak ?? false\n+  const generator =\n+    options?.generateDigest ??\n+    ((body: Uint8Array) =>\n+      crypto.subtle.digest(\n+        {\n+          name: 'SHA-1',\n+        },\n+        body\n+      ))\n \n   return async function etag(c, next) {\n     const ifNoneMatch = c.req.header('If-None-Match') ?? null\n@@ -63,15 +76,14 @@ export const etag = (options?: ETagOptions): MiddlewareHandler => {\n     let etag = res.headers.get('ETag')\n \n     if (!etag) {\n-      const hash = await generateDigest(res.clone().body)\n+      const hash = await generateDigest(res.clone().body, generator)\n       if (hash === null) {\n         return\n       }\n       etag = weak ? `W/\"${hash}\"` : `\"${hash}\"`\n     }\n \n     if (etagMatches(etag, ifNoneMatch)) {\n-      await c.res.blob() // Force using body\n       c.res = new Response(null, {\n         status: 304,\n         statusText: 'Not Modified',"
+  }
+]

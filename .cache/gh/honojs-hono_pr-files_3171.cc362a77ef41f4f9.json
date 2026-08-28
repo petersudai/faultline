@@ -1,0 +1,9 @@
+[
+  {
+    "filename": "src/helper/adapter/index.ts",
+    "status": "modified",
+    "additions": 6,
+    "deletions": 2,
+    "patch": "@@ -47,8 +47,12 @@ export const getRuntimeKey = (): Runtime => {\n   const global = globalThis as any\n \n   // check if the current runtime supports navigator.userAgent\n-  const userAgentSupported =\n-    typeof navigator !== 'undefined' && typeof navigator.userAgent === 'string'\n+  let userAgentSupported = false\n+  // In Cloudflare Pages, navigator is undefined in the production environment.\n+  // Therefore, it only check navigator.userAgent.\n+  try {\n+    userAgentSupported = typeof navigator.userAgent === 'string'\n+  } catch {}\n \n   // if supported, check the user agent\n   if (userAgentSupported) {"
+  }
+]

@@ -1,0 +1,33 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3833,
+    "title": "fix(compress): don't compress server-sent events",
+    "baseSha": "2a68c594d24c282d0c9f9c286f114acf5019f383",
+    "headSha": "aee7f69dcfc60f379a7830241aa6e82c9db5718f",
+    "filesChanged": 2,
+    "additions": 14,
+    "deletions": 2
+  },
+  "summary": "Fake review of \"fix(compress): don't compress server-sent events\".",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/minor.ts",
+      "line": 1,
+      "category": "other",
+      "rationale": "Minor stylistic note.",
+      "suggestedCheck": "None."
+    }
+  ],
+  "risk": "Low",
+  "meta": {
+    "mode": "baseline",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 120,
+    "outputTokens": 60,
+    "costUsd": 0,
+    "wallMs": 1,
+    "toolCalls": 0
+  }
+}

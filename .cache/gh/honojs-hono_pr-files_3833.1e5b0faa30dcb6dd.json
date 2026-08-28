@@ -1,0 +1,16 @@
+[
+  {
+    "filename": "src/middleware/compress/index.test.ts",
+    "status": "modified",
+    "additions": 13,
+    "deletions": 1,
+    "patch": "@@ -1,4 +1,4 @@\n-import { stream } from '../../helper/streaming'\n+import { stream, streamSSE } from '../../helper/streaming'\n import { Hono } from '../../hono'\n import { compress } from '.'\n \n@@ -65,6 +65,13 @@ describe('Compress Middleware', () => {\n       }\n     })\n   )\n+  app.get('/sse', (c) =>\n+    streamSSE(c, async (stream) => {\n+      for (let i = 0; i < 1000; i++) {\n+        await stream.writeSSE({ data: 'chunk' })\n+      }\n+    })\n+  )\n   app.notFound((c) => c.text('Custom NotFound', 404))\n \n   const testCompression = async (\n@@ -155,6 +162,11 @@ describe('Compress Middleware', () => {\n       const res = await testCompression('/already-compressed-stream', 'gzip', 'br')\n       expect((await res.arrayBuffer()).byteLength).toBe(60000)\n     })\n+\n+    it('should not compress server-sent events', async () => {\n+      const res = await testCompression('/sse', 'gzip', null)\n+      expect((await res.arrayBuffer()).byteLength).toBe(13000)\n+    })\n   })\n \n   describe('Edge Cases', () => {"
+  },
+  {
+    "filename": "src/utils/compress.ts",
+    "status": "modified",
+    "additions": 1,
+    "deletions": 1,
+    "patch": "@@ -7,4 +7,4 @@\n  * Match for compressible content type.\n  */\n export const COMPRESSIBLE_CONTENT_TYPE_REGEX =\n-  /^\\s*(?:text\\/[^;\\s]+|application\\/(?:javascript|json|xml|xml-dtd|ecmascript|dart|postscript|rtf|tar|toml|vnd\\.dart|vnd\\.ms-fontobject|vnd\\.ms-opentype|wasm|x-httpd-php|x-javascript|x-ns-proxy-autoconfig|x-sh|x-tar|x-virtualbox-hdd|x-virtualbox-ova|x-virtualbox-ovf|x-virtualbox-vbox|x-virtualbox-vdi|x-virtualbox-vhd|x-virtualbox-vmdk|x-www-form-urlencoded)|font\\/(?:otf|ttf)|image\\/(?:bmp|vnd\\.adobe\\.photoshop|vnd\\.microsoft\\.icon|vnd\\.ms-dds|x-icon|x-ms-bmp)|message\\/rfc822|model\\/gltf-binary|x-shader\\/x-fragment|x-shader\\/x-vertex|[^;\\s]+?\\+(?:json|text|xml|yaml))(?:[;\\s]|$)/i\n+  /^\\s*(?:text\\/(?!event-stream(?:[;\\s]|$))[^;\\s]+|application\\/(?:javascript|json|xml|xml-dtd|ecmascript|dart|postscript|rtf|tar|toml|vnd\\.dart|vnd\\.ms-fontobject|vnd\\.ms-opentype|wasm|x-httpd-php|x-javascript|x-ns-proxy-autoconfig|x-sh|x-tar|x-virtualbox-hdd|x-virtualbox-ova|x-virtualbox-ovf|x-virtualbox-vbox|x-virtualbox-vdi|x-virtualbox-vhd|x-virtualbox-vmdk|x-www-form-urlencoded)|font\\/(?:otf|ttf)|image\\/(?:bmp|vnd\\.adobe\\.photoshop|vnd\\.microsoft\\.icon|vnd\\.ms-dds|x-icon|x-ms-bmp)|message\\/rfc822|model\\/gltf-binary|x-shader\\/x-fragment|x-shader\\/x-vertex|[^;\\s]+?\\+(?:json|text|xml|yaml))(?:[;\\s]|$)/i"
+  }
+]

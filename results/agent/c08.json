@@ -1,0 +1,33 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3849,
+    "title": "fix(factory): correct the type of `factory.createMiddleware()`",
+    "baseSha": "3fba7a5e7d92cdb69c817dd15702508812305171",
+    "headSha": "dbfe2477ffdcb2eedf372ed32dd50b204aceb903",
+    "filesChanged": 2,
+    "additions": 43,
+    "deletions": 21
+  },
+  "summary": "Fake review of \"fix(factory): correct the type of factory.createMiddleware()\".",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/minor.ts",
+      "line": 1,
+      "category": "other",
+      "rationale": "Minor stylistic note.",
+      "suggestedCheck": "None."
+    }
+  ],
+  "risk": "Low",
+  "meta": {
+    "mode": "baseline",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 120,
+    "outputTokens": 60,
+    "costUsd": 0,
+    "wallMs": 0,
+    "toolCalls": 0
+  }
+}

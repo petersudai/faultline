@@ -1,0 +1,16 @@
+[
+  {
+    "filename": "src/helper/adapter/index.test.ts",
+    "status": "modified",
+    "additions": 32,
+    "deletions": 6,
+    "patch": "@@ -16,13 +16,39 @@ describe('env', () => {\n         MY_VAR: string\n       }\n     }\n-    const app = new Hono<Env>()\n \n-    it('Should set the type of the Context correctly and not throw a type error')\n-    app.get('/var', (c) => {\n-      const { MY_VAR } = env<{ MY_VAR: string }>(c)\n-      return c.json({\n-        var: MY_VAR,\n+    it('Should not throw type errors with env has generics', () => {\n+      const app = new Hono()\n+      app.get('/var', (c) => {\n+        const { MY_VAR } = env<{ MY_VAR: string }>(c)\n+        expectTypeOf<string>(MY_VAR)\n+        return c.json({\n+          var: MY_VAR,\n+        })\n+      })\n+    })\n+\n+    it('Should not throw type errors with Hono has generics', () => {\n+      const app = new Hono<Env>()\n+\n+      app.get('/var', (c) => {\n+        const { MY_VAR } = env(c)\n+        expectTypeOf<string>(MY_VAR)\n+        return c.json({\n+          var: MY_VAR,\n+        })\n+      })\n+    })\n+\n+    it('Should not throw type errors with env and Hono have generics', () => {\n+      const app = new Hono<Env>()\n+\n+      app.get('/var', (c) => {\n+        const { MY_VAR } = env<{ MY_VAR: string }>(c)\n+        expectTypeOf<string>(MY_VAR)\n+        return c.json({\n+          var: MY_VAR,\n+        })\n       })\n     })\n   })"
+  },
+  {
+    "filename": "src/helper/adapter/index.ts",
+    "status": "modified",
+    "additions": 4,
+    "deletions": 6,
+    "patch": "@@ -9,13 +9,11 @@ export type Runtime = 'node' | 'deno' | 'bun' | 'workerd' | 'fastly' | 'edge-lig\n \n export const env = <\n   T extends Record<string, unknown>,\n-  C extends Context = Context<\n-    {} & {\n-      Bindings: T\n-    }\n-  >\n+  C extends Context = Context<{\n+    Bindings: T\n+  }>\n >(\n-  c: C,\n+  c: T extends Record<string, unknown> ? Context : C,\n   runtime?: Runtime\n ): T & C['env'] => {\n   // eslint-disable-next-line @typescript-eslint/no-explicit-any"
+  }
+]

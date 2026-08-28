@@ -1,0 +1,16 @@
+[
+  {
+    "filename": "src/helper/factory/index.test.ts",
+    "status": "modified",
+    "additions": 30,
+    "deletions": 0,
+    "patch": "@@ -36,6 +36,36 @@ describe('createMiddleware', () => {\n     const url = client.message.$url()\n     expect(url.pathname).toBe('/message')\n   })\n+\n+  describe('Relax types for Bindings and Variables', () => {\n+    it('Should not throw a type error', () => {\n+      type Bindings = {\n+        MY_VAR_IN_BINDINGS: string\n+      }\n+\n+      const app = new Hono<{ Bindings: Bindings }>()\n+\n+      type Variables = {\n+        MY_VAR: string\n+      }\n+\n+      const middleware = (_variable: string) =>\n+        createMiddleware<{ Variables: Variables }>(async (c, next) => {\n+          await next()\n+        })\n+\n+      app.get(\n+        '/',\n+        createMiddleware<{ Bindings: Bindings }>(async (c, next) => {\n+          const mw = middleware(c.env.MY_VAR_IN_BINDINGS)\n+          await mw(c, next) // `c` does not throw an error\n+        }),\n+        (c) => {\n+          return c.json({})\n+        }\n+      )\n+    })\n+  })\n })\n \n describe('createHandler', () => {"
+  },
+  {
+    "filename": "src/helper/factory/index.ts",
+    "status": "modified",
+    "additions": 14,
+    "deletions": 3,
+    "patch": "@@ -6,6 +6,7 @@\n /* eslint-disable @typescript-eslint/no-explicit-any */\n import { Hono } from '../../hono'\n import type { Env, H, HandlerResponse, Input, MiddlewareHandler } from '../../types'\n+import type { Simplify } from '../../utils/types'\n \n type InitApp<E extends Env = Env> = (app: Hono<E>) => void\n \n@@ -237,10 +238,20 @@ export const createFactory = <E extends Env = any, P extends string = any>(init?\n   initApp?: InitApp<E>\n }): Factory<E, P> => new Factory<E, P>(init)\n \n+// Add `any` if it's undefined to relax types\n+// { Variables: Variables } => { Bindings: any, Variables: any }\n+// { Bindings: Bindings } => { Bindings: Bindings, Variables: any }\n+\n+type AddAnyToEnv<T extends { Variables?: object; Bindings?: object }> = {\n+  Bindings: undefined extends T['Bindings'] ? any : T['Bindings']\n+  Variables: undefined extends T['Variables'] ? any : T['Variables']\n+}\n+\n export const createMiddleware = <\n   E extends Env = any,\n   P extends string = string,\n-  I extends Input = {}\n+  I extends Input = {},\n+  E2 extends Env = Simplify<AddAnyToEnv<E>>\n >(\n-  middleware: MiddlewareHandler<E, P, I>\n-): MiddlewareHandler<E, P, I> => createFactory<E, P>().createMiddleware<I>(middleware)\n+  middleware: MiddlewareHandler<E2, P, I>\n+): MiddlewareHandler<E2, P, I> => createFactory<E2, P>().createMiddleware<I>(middleware)"
+  }
+]

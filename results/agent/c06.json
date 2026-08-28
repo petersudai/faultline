@@ -1,0 +1,33 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 871,
+    "title": "feat: use added app's errorHandler",
+    "baseSha": "c335a9272b6fabab5bb4407f1d1a0ae42a0ff5b5",
+    "headSha": "141cb9d18864912b2fffbfd2f278a1d24b6a4c7d",
+    "filesChanged": 6,
+    "additions": 141,
+    "deletions": 30
+  },
+  "summary": "Fake review of \"feat: use added app's errorHandler\".",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "src/compose.ts",
+      "line": 10,
+      "category": "unhandled-edge-case",
+      "rationale": "Potential problem around: preferring a mounted sub-app's errorHandler changes error-handling precedence in compose,",
+      "suggestedCheck": "Verify the reverted behavior by hand."
+    }
+  ],
+  "risk": "High",
+  "meta": {
+    "mode": "baseline",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 120,
+    "outputTokens": 60,
+    "costUsd": 0,
+    "wallMs": 1,
+    "toolCalls": 0
+  }
+}

@@ -1,0 +1,23 @@
+[
+  {
+    "filename": "src/context.test.ts",
+    "status": "modified",
+    "additions": 3,
+    "deletions": 3,
+    "patch": "@@ -151,11 +151,11 @@ describe('Context', () => {\n     c.header('X-Foo', 'Bar')\n     c.header('X-Foo', undefined)\n     c.header('X-Foo2', 'Bar')\n-    let res = c.body('Hi')\n+    const res = c.body('Hi')\n     expect(res.headers.get('X-Foo')).toBe(null)\n     c.header('X-Foo2', undefined)\n-    res = c.res\n-    expect(res.headers.get('X-Foo2')).toBe(null)\n+    const res2 = c.body('Hi')\n+    expect(res2.headers.get('X-Foo2')).toBe(null)\n   })\n \n   it('c.header() - clear the header when append is true', async () => {"
+  },
+  {
+    "filename": "src/context.ts",
+    "status": "modified",
+    "additions": 16,
+    "deletions": 8,
+    "patch": "@@ -116,10 +116,14 @@ interface NewResponse {\n  */\n interface BodyRespond {\n   // if we return content, only allow the status codes that allow for returning the body\n-  (data: Data, status?: ContentfulStatusCode, headers?: HeaderRecord): Response\n-  (data: null, status?: StatusCode, headers?: HeaderRecord): Response\n-  (data: Data, init?: ResponseOrInit<ContentfulStatusCode>): Response\n-  (data: null, init?: ResponseOrInit): Response\n+  <U extends ContentfulStatusCode>(data: Data, status?: U, headers?: HeaderRecord): Response &\n+    TypedResponse<unknown, U, 'body'>\n+  <U extends StatusCode>(data: null, status?: U, headers?: HeaderRecord): Response &\n+    TypedResponse<null, U, 'body'>\n+  <U extends ContentfulStatusCode>(data: Data, init?: ResponseOrInit<U>): Response &\n+    TypedResponse<unknown, U, 'body'>\n+  <U extends StatusCode>(data: null, init?: ResponseOrInit<U>): Response &\n+    TypedResponse<null, U, 'body'>\n }\n \n /**\n@@ -723,10 +727,14 @@ export class Context<\n    * })\n    * ```\n    */\n-  body: BodyRespond = (data, arg?: StatusCode | RequestInit, headers?: HeaderRecord) => {\n-    return typeof arg === 'number'\n-      ? this.#newResponse(data, arg, headers)\n-      : this.#newResponse(data, arg)\n+  body: BodyRespond = (\n+    data: Data | null,\n+    arg?: StatusCode | RequestInit,\n+    headers?: HeaderRecord\n+  ): ReturnType<BodyRespond> => {\n+    return (\n+      typeof arg === 'number' ? this.#newResponse(data, arg, headers) : this.#newResponse(data, arg)\n+    ) as ReturnType<BodyRespond>\n   }\n \n   /**"
+  },
+  {
+    "filename": "src/types.test.ts",
+    "status": "modified",
+    "additions": 17,
+    "deletions": 0,
+    "patch": "@@ -2328,4 +2328,21 @@ describe('status code', () => {\n     // @ts-expect-error 204 is not contentful status code\n     app.get('/', async (c) => c.html('<h1>title</h1>', { status: 204 }))\n   })\n+\n+  it('.body() not override other responses in hono client', async () => {\n+    const router = app.get('/', async (c) => {\n+      if (c.req.header('Content-Type') === 'application/json') {\n+        return c.text('Hello', 200)\n+      }\n+\n+      if (c.req.header('Content-Type') === 'application/x-www-form-urlencoded') {\n+        return c.body('Hello', 201)\n+      }\n+\n+      return c.body(null, 204)\n+    })\n+\n+    type Actual = ExtractSchema<typeof router>['/']['$get']['status']\n+    expectTypeOf<Actual>().toEqualTypeOf<204 | 201 | 200>()\n+  })\n })"
+  }
+]
