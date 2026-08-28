@@ -8,6 +8,8 @@ import { nullLogger, type Logger } from "../logging.js";
 import type { LlmLike, Message } from "../llm/types.js";
 import type { PrMetadata, ChangedFile } from "../github/client.js";
 import type { RepoContext } from "../repo/tools.js";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { buildToolkit, ALL_TOOLS, type ToolName } from "./toolDefs.js";
 import {
   INVESTIGATOR_SYSTEM,
@@ -50,6 +52,35 @@ function clip(s: string): string {
   return s.length > MAX_TOOL_RESULT_CHARS
     ? s.slice(0, MAX_TOOL_RESULT_CHARS) + "\n… (truncated)"
     : s;
+}
+
+/**
+ * Drop findings that point at a file which is neither in the PR nor present in
+ * the repo — i.e. the model invented the path. Findings on real-but-unchanged
+ * files are kept (a caller that needs updating is a legitimate concern).
+ */
+function pruneHallucinatedFiles(
+  findings: Finding[],
+  changedFiles: ChangedFile[],
+  repo: RepoContext | null,
+): { kept: Finding[]; dropped: Finding[] } {
+  const changed = new Set<string>();
+  for (const f of changedFiles) {
+    changed.add(f.path);
+    if (f.previousPath) changed.add(f.previousPath);
+  }
+  const kept: Finding[] = [];
+  const dropped: Finding[] = [];
+  for (const f of findings) {
+    const path = f.file.replace(/^\.?\//, "");
+    const real =
+      changed.has(f.file) ||
+      changed.has(path) ||
+      (repo != null && existsSync(join(repo.dir, path)));
+    if (real || repo == null) kept.push(f);
+    else dropped.push(f);
+  }
+  return { kept, dropped };
 }
 
 export async function runAgent(
@@ -200,6 +231,20 @@ export async function runAgent(
     }
   }
 
+  const { kept, dropped } = pruneHallucinatedFiles(
+    verified.findings,
+    deps.changedFiles,
+    deps.repo,
+  );
+  if (dropped.length) {
+    log.step({
+      kind: "phase",
+      label: "pruned-hallucinated-files",
+      output: dropped.map((f) => ({ file: f.file, rationale: f.rationale })),
+    });
+  }
+  verified = { ...verified, findings: kept };
+
   const risk = classifyRisk(verified.findings);
   const usage = deps.llm.usage;
   const verifierUsage = deps.verifier?.usage ?? { inputTokens: 0, outputTokens: 0, costUsd: 0 };
@@ -233,5 +278,6 @@ export async function runAgent(
 
   log.step({ kind: "phase", label: "done", output: { risk, findings: verified.findings.length } });
   log.artifact("review.json", JSON.stringify(review, null, 2));
+  log.finalize();
   return review;
 }

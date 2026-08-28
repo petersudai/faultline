@@ -16,13 +16,18 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** git on Windows emits CRLF; normalise before any line work. */
+function splitLines(s: string): string[] {
+  return s.split(/\r?\n/);
+}
+
 function gitOut(ctx: RepoContext, args: string[]): string {
   try {
     return execFileSync("git", args, {
       cwd: ctx.dir,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
-      maxBuffer: 32 * 1024 * 1024,
+      maxBuffer: 64 * 1024 * 1024,
     });
   } catch (e) {
     // git grep exits 1 when there are no matches — treat as empty
@@ -31,72 +36,98 @@ function gitOut(ctx: RepoContext, args: string[]): string {
   }
 }
 
-/** Raw file content at a given revision, or null if it doesn't exist there. */
+/** Raw file content at a revision, or null if absent there. */
 function getContent(ctx: RepoContext, path: string, ref?: string): string | null {
+  const clean = path.replace(/^\.?\//, "");
   if (!ref) {
-    const full = join(ctx.dir, path);
+    const full = join(ctx.dir, clean);
     return existsSync(full) ? readFileSync(full, "utf8") : null;
   }
   try {
-    return execFileSync("git", ["show", `${ref}:${path}`], {
+    return execFileSync("git", ["show", `${ref}:${clean}`], {
       cwd: ctx.dir,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
-      maxBuffer: 32 * 1024 * 1024,
+      maxBuffer: 64 * 1024 * 1024,
     });
   } catch {
     return null;
   }
 }
 
+const DEFAULT_MAX_LINES = 1600;
+const HEAD_LINES = 240;
+const TAIL_LINES = 60;
+
+function numbered(lines: string[], from: number): string {
+  return lines.map((l, i) => `${from + i}\t${l}`).join("\n");
+}
+
 /**
- * Read a file at a given revision (default: the checked-out base), with line
- * numbers. Large files are returned as windows around `around` anchor lines.
+ * Read a file at a revision (default: checked-out base) with line numbers.
+ *  - <= maxLines: whole file
+ *  - larger, `around` given: merged windows of ±context lines
+ *  - larger, no `around`: head + tail with an elision marker
  */
 export function readFile(
   ctx: RepoContext,
   path: string,
-  opts: { ref?: string; around?: number[]; context?: number; maxLines?: number } = {},
+  opts: {
+    ref?: string;
+    around?: number[];
+    context?: number;
+    maxLines?: number;
+  } = {},
 ): string {
   const raw = getContent(ctx, path, opts.ref);
   if (raw == null) return `(file not present at ${opts.ref ?? "base"}: ${path})`;
 
-  const lines = raw.split("\n");
-  const maxLines = opts.maxLines ?? 400;
-  if (lines.length <= maxLines) {
-    return lines.map((l, i) => `${i + 1}\t${l}`).join("\n");
+  const lines = splitLines(raw);
+  const maxLines = opts.maxLines ?? DEFAULT_MAX_LINES;
+  if (lines.length <= maxLines) return numbered(lines, 1);
+
+  if (opts.around && opts.around.length) {
+    const ctxN = opts.context ?? 45;
+    const ranges: [number, number][] = [...opts.around]
+      .sort((a, b) => a - b)
+      .map((a) => [Math.max(1, a - ctxN), Math.min(lines.length, a + ctxN)]);
+    const merged: [number, number][] = [];
+    for (const [s, e] of ranges) {
+      const last = merged[merged.length - 1];
+      if (last && s <= last[1] + 1) last[1] = Math.max(last[1], e);
+      else merged.push([s, e]);
+    }
+    const parts = [`(${lines.length} lines; ${merged.length} window(s) shown)`];
+    for (const [s, e] of merged) {
+      parts.push(`\n--- ${s}-${e} ---`);
+      parts.push(numbered(lines.slice(s - 1, e), s));
+    }
+    return parts.join("\n");
   }
 
-  const ctxN = opts.context ?? 40;
-  const anchors = [...(opts.around ?? [1])].sort((a, b) => a - b);
-  const ranges: [number, number][] = anchors.map((a) => [
-    Math.max(1, a - ctxN),
-    Math.min(lines.length, a + ctxN),
-  ]);
-  const merged: [number, number][] = [];
-  for (const [s, e] of ranges) {
-    const last = merged[merged.length - 1];
-    if (last && s <= last[1] + 1) last[1] = Math.max(last[1], e);
-    else merged.push([s, e]);
-  }
-
-  const parts: string[] = [
-    `(file has ${lines.length} lines; showing ${merged.length} window(s))`,
-  ];
-  for (const [s, e] of merged) {
-    parts.push(`\n--- lines ${s}-${e} ---`);
-    for (let i = s; i <= e; i++) parts.push(`${i}\t${lines[i - 1] ?? ""}`);
-  }
-  return parts.join("\n");
+  const head = numbered(lines.slice(0, HEAD_LINES), 1);
+  const tailStart = lines.length - TAIL_LINES + 1;
+  const tail = numbered(lines.slice(tailStart - 1), tailStart);
+  return (
+    `(${lines.length} lines; showing first ${HEAD_LINES} and last ${TAIL_LINES} — ` +
+    `call again with { around: [lineNumbers] } to see the middle)\n` +
+    head +
+    `\n… ${lines.length - HEAD_LINES - TAIL_LINES} lines omitted …\n` +
+    tail
+  );
 }
 
 function parseGrep(out: string, limit: number): CodeHit[] {
   const hits: CodeHit[] = [];
-  for (const raw of out.split("\n")) {
+  for (const raw of splitLines(out)) {
     if (!raw) continue;
     const m = raw.match(/^(.+?):(\d+):(.*)$/);
     if (!m) continue;
-    hits.push({ path: m[1]!, line: Number(m[2]), snippet: m[3]!.trim().slice(0, 240) });
+    hits.push({
+      path: m[1]!,
+      line: Number(m[2]),
+      snippet: m[3]!.trim().slice(0, 240),
+    });
     if (hits.length >= limit) break;
   }
   return hits;
@@ -108,9 +139,10 @@ export function searchRepo(
   query: string,
   opts: { limit?: number } = {},
 ): CodeHit[] {
-  const limit = opts.limit ?? 40;
-  const out = gitOut(ctx, ["grep", "-n", "-I", "-F", "--", query]);
-  return parseGrep(out, limit);
+  return parseGrep(
+    gitOut(ctx, ["grep", "-n", "-I", "-F", "--", query]),
+    opts.limit ?? 40,
+  );
 }
 
 /** Whole-word references to a symbol — call sites of a changed function etc. */
@@ -119,21 +151,52 @@ export function findReferences(
   symbol: string,
   opts: { limit?: number } = {},
 ): CodeHit[] {
-  const limit = opts.limit ?? 60;
-  const out = gitOut(ctx, ["grep", "-n", "-I", "-w", "-F", "--", symbol]);
-  return parseGrep(out, limit);
+  return parseGrep(
+    gitOut(ctx, ["grep", "-n", "-I", "-w", "-F", "--", symbol]),
+    opts.limit ?? 60,
+  );
 }
 
-/** Heuristic: test files whose name relates to a changed source path. */
+const IS_TEST = /\.(test|spec)\.[jt]sx?$/i;
+const GENERIC_STEMS = new Set([
+  "index", "mod", "main", "types", "utils", "util", "helper", "helpers",
+]);
+
+function dirOf(p: string): string {
+  const c = p.replace(/^\.?\//, "");
+  return c.includes("/") ? c.slice(0, c.lastIndexOf("/")) : "";
+}
+function testStem(f: string): string {
+  return basename(f)
+    .replace(IS_TEST, "")
+    .replace(/\.[jt]sx?$/, "")
+    .toLowerCase();
+}
+
+/**
+ * Test files related to a changed source path. Priority:
+ *  1. a sibling `<name>.test.*` in the same directory
+ *  2. if the name is generic (index/mod/...), every test file in that directory
+ *  3. otherwise, any test file with a matching base name
+ */
 export function getRelatedTests(ctx: RepoContext, path: string): string[] {
-  const all = gitOut(ctx, ["ls-files"]).split("\n").filter(Boolean);
-  const stem = basename(path).replace(/\.[jt]sx?$/, "");
+  const all = splitLines(gitOut(ctx, ["ls-files"])).filter(Boolean);
+  const dir = dirOf(path);
+  const stem = basename(path).replace(/\.[jt]sx?$/, "").toLowerCase();
   if (!stem) return [];
-  const s = escapeRegex(stem);
-  const rx = new RegExp(
-    `(^|/)${s}[.\\-_].*\\.(test|spec)\\.[jt]sx?$` +
-      `|(^|/)(test|tests|__tests__|spec)/.*${s}`,
-    "i",
+
+  const inDir = (f: string) => dirOf(f) === dir;
+
+  const siblings = all.filter(
+    (f) => IS_TEST.test(f) && inDir(f) && testStem(f) === stem,
   );
-  return all.filter((f) => rx.test(f)).slice(0, 20);
+  if (siblings.length) return siblings.slice(0, 20);
+
+  if (GENERIC_STEMS.has(stem) && dir) {
+    return all.filter((f) => IS_TEST.test(f) && inDir(f)).slice(0, 20);
+  }
+
+  return all
+    .filter((f) => IS_TEST.test(f) && testStem(f) === stem)
+    .slice(0, 10);
 }

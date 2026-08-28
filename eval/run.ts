@@ -105,15 +105,18 @@ function fakeReviewJson(c: Case, better: boolean): string {
   return JSON.stringify({ summary: `Fake review of "${c.title}".`, findings });
 }
 
-/** Scripted fake for the agent loop: pull the diff once, then emit the review. */
+/**
+ * Scripted fake for the agent loop:
+ *   turn 0 → call get_diff
+ *   turn 1 → emit the draft review JSON
+ *   turn 2 → (verify pass) echo the review back unchanged
+ * Exercises the full investigate → verify → classify path offline.
+ */
 function fakeAgentLlm(c: Case): FakeLlm {
+  const reviewJson = fakeReviewJson(c, true);
   return new FakeLlm(({ turn }) => {
-    if (turn === 0) {
-      return {
-        toolUses: [{ id: "t0", name: "get_diff", input: {} }],
-      };
-    }
-    return { text: fakeReviewJson(c, true) };
+    if (turn === 0) return { toolUses: [{ id: "t0", name: "get_diff", input: {} }] };
+    return { text: reviewJson };
   });
 }
 
@@ -155,7 +158,7 @@ async function reviewCase(
     getDiff,
     changedFiles,
     logger,
-    verify: !args.fake,
+    verify: true,
   });
 }
 

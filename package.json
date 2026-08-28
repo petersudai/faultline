@@ -14,6 +14,7 @@
     "eval": "tsx eval/run.ts",
     "report": "tsx eval/report.ts",
     "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test \"test/*.test.ts\"",
     "build": "tsc"
   },
   "dependencies": {
