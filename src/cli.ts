@@ -2,7 +2,11 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { loadConfig } from "./config.js";
 import { GithubClient } from "./github/client.js";
+import { ensureCheckout } from "./github/checkout.js";
 import { runBaseline } from "./baseline/run.js";
+import { runAgent } from "./agent/loop.js";
+import { LlmClient } from "./llm/anthropic.js";
+import { RunLogger } from "./logging.js";
 import { renderReview } from "./review/render.js";
 
 interface Args {
@@ -31,7 +35,7 @@ async function main(): Promise<void> {
 
   if (!args.repo || !args.pr || !/^[^/\s]+\/[^/\s]+$/.test(args.repo)) {
     console.error(
-      "Usage: faultline <owner/repo> <pr-number> [--offline] [--dry-run] [--agent]",
+      "Usage: faultline <owner/repo> <pr-number> [--agent] [--offline] [--dry-run]",
     );
     process.exit(2);
     return;
@@ -46,10 +50,6 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (args.mode === "agent") {
-    console.error("agent mode not wired yet (Block 3) — running baseline");
-  }
-
   const [owner, repo] = args.repo.split("/") as [string, string];
   const gh = new GithubClient({
     token: cfg.githubToken,
@@ -58,18 +58,42 @@ async function main(): Promise<void> {
 
   console.error(`Fetching ${args.repo}#${args.pr} …`);
   const meta = await gh.getPrMetadata(owner, repo, args.pr);
-  const diff = await gh.getDiff(owner, repo, args.pr);
+  const changedFiles = await gh.listChangedFiles(owner, repo, args.pr);
   console.error(
     `  "${meta.title}" · ${meta.changedFiles} files · +${meta.additions} −${meta.deletions} · merged=${meta.merged}`,
   );
 
-  console.error(`Reviewing (baseline, ${cfg.model}) …`);
-  const review = await runBaseline({
-    meta,
-    diff,
-    apiKey: cfg.anthropicApiKey,
-    model: cfg.model,
-  });
+  const getDiff = (path?: string) => gh.getDiff(owner, repo, args.pr!, path);
+  let review;
+
+  if (args.mode === "agent") {
+    console.error("Checking out base + head …");
+    const checkout = ensureCheckout(owner, repo, meta.baseSha, meta.headSha);
+    const llm = new LlmClient({ apiKey: cfg.anthropicApiKey, model: cfg.model });
+    const logger = new RunLogger(
+      "trajectories",
+      `${owner}-${repo}-${args.pr}-${Date.now()}`,
+    );
+    console.error(`Reviewing (agent, ${cfg.model}) …`);
+    review = await runAgent(meta, {
+      llm,
+      repo: { dir: checkout.dir },
+      headSha: meta.headSha,
+      getDiff,
+      changedFiles,
+      logger,
+      verify: true,
+    });
+  } else {
+    const diff = await getDiff();
+    console.error(`Reviewing (baseline, ${cfg.model}) …`);
+    review = await runBaseline({
+      meta,
+      diff,
+      model: cfg.model,
+      apiKey: cfg.anthropicApiKey,
+    });
+  }
 
   const outDir = join(process.cwd(), "out", `${owner}-${repo}-${args.pr}`);
   mkdirSync(outDir, { recursive: true });
@@ -82,7 +106,8 @@ async function main(): Promise<void> {
     `Wrote out/${owner}-${repo}-${args.pr}/  ·  ` +
       `$${review.meta.costUsd.toFixed(4)} · ` +
       `${review.meta.inputTokens}+${review.meta.outputTokens} tok · ` +
-      `${(review.meta.wallMs / 1000).toFixed(1)}s`,
+      `${(review.meta.wallMs / 1000).toFixed(1)}s · ` +
+      `${review.meta.toolCalls} tool calls`,
   );
 }
 

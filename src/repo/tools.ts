@@ -31,19 +31,37 @@ function gitOut(ctx: RepoContext, args: string[]): string {
   }
 }
 
+/** Raw file content at a given revision, or null if it doesn't exist there. */
+function getContent(ctx: RepoContext, path: string, ref?: string): string | null {
+  if (!ref) {
+    const full = join(ctx.dir, path);
+    return existsSync(full) ? readFileSync(full, "utf8") : null;
+  }
+  try {
+    return execFileSync("git", ["show", `${ref}:${path}`], {
+      cwd: ctx.dir,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: 32 * 1024 * 1024,
+    });
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Read a file at the checked-out (base) revision, with line numbers. Large files
- * are returned as windows around `around` anchor lines instead of in full.
+ * Read a file at a given revision (default: the checked-out base), with line
+ * numbers. Large files are returned as windows around `around` anchor lines.
  */
 export function readFile(
   ctx: RepoContext,
   path: string,
-  opts: { around?: number[]; context?: number; maxLines?: number } = {},
+  opts: { ref?: string; around?: number[]; context?: number; maxLines?: number } = {},
 ): string {
-  const full = join(ctx.dir, path);
-  if (!existsSync(full)) return `(file not present at base revision: ${path})`;
+  const raw = getContent(ctx, path, opts.ref);
+  if (raw == null) return `(file not present at ${opts.ref ?? "base"}: ${path})`;
 
-  const lines = readFileSync(full, "utf8").split("\n");
+  const lines = raw.split("\n");
   const maxLines = opts.maxLines ?? 400;
   if (lines.length <= maxLines) {
     return lines.map((l, i) => `${i + 1}\t${l}`).join("\n");

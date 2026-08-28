@@ -6,7 +6,8 @@ const REPOS_DIR = join(process.cwd(), ".cache", "repos");
 
 export interface Checkout {
   dir: string;
-  sha: string;
+  baseSha: string;
+  headSha: string | undefined;
 }
 
 function git(cwd: string, args: string[]): string {
@@ -19,28 +20,43 @@ function git(cwd: string, args: string[]): string {
 }
 
 /**
- * Shallow-fetch one commit of a public repo into
- * .cache/repos/<owner>-<repo>@<sha>. Idempotent. Used by the agent's file tools;
- * the baseline never needs it.
+ * Shallow-fetch a PR's base (and head) commits of a public repo into
+ * .cache/repos/<owner>-<repo>@<baseSha>. Working tree is at base; head is
+ * fetched too so `git show <headSha>:<path>` works. Idempotent. Used by the
+ * agent's file tools; the baseline never needs it.
  */
 export function ensureCheckout(
   owner: string,
   repo: string,
-  sha: string,
+  baseSha: string,
+  headSha?: string,
 ): Checkout {
-  const dir = join(REPOS_DIR, `${owner}-${repo}@${sha}`);
-  if (existsSync(join(dir, ".git"))) return { dir, sha };
-  mkdirSync(dir, { recursive: true });
-
+  const dir = join(REPOS_DIR, `${owner}-${repo}@${baseSha}`);
   const url = `https://github.com/${owner}/${repo}.git`;
-  git(dir, ["init", "-q"]);
-  git(dir, ["remote", "add", "origin", url]);
-  try {
-    git(dir, ["fetch", "-q", "--depth", "1", "origin", sha]);
-  } catch {
-    // some servers refuse a bare-sha want; fall back to shallow history
-    git(dir, ["fetch", "-q", "--depth", "100", "origin"]);
+
+  const fetchSha = (sha: string) => {
+    try {
+      git(dir, ["fetch", "-q", "--depth", "1", "origin", sha]);
+    } catch {
+      git(dir, ["fetch", "-q", "--depth", "100", "origin"]);
+    }
+  };
+
+  if (!existsSync(join(dir, ".git"))) {
+    mkdirSync(dir, { recursive: true });
+    git(dir, ["init", "-q"]);
+    git(dir, ["remote", "add", "origin", url]);
+    fetchSha(baseSha);
+    git(dir, ["checkout", "-q", baseSha]);
   }
-  git(dir, ["checkout", "-q", sha]);
-  return { dir, sha };
+
+  if (headSha) {
+    try {
+      git(dir, ["cat-file", "-e", `${headSha}^{commit}`]);
+    } catch {
+      fetchSha(headSha);
+    }
+  }
+
+  return { dir, baseSha, headSha };
 }

@@ -2,10 +2,14 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { loadConfig, MODELS } from "../src/config.js";
 import { GithubClient } from "../src/github/client.js";
+import { ensureCheckout } from "../src/github/checkout.js";
 import { runBaseline } from "../src/baseline/run.js";
+import { runAgent } from "../src/agent/loop.js";
+import { LlmClient } from "../src/llm/anthropic.js";
 import { FakeLlm } from "../src/llm/fake.js";
+import { RunLogger } from "../src/logging.js";
 import { renderReview } from "../src/review/render.js";
-import { Review, type Review as TReview } from "../src/review/schema.js";
+import { type Review as TReview } from "../src/review/schema.js";
 import { loadCases, type Case } from "./cases.js";
 import { scoreAll } from "./score.js";
 import { writeRunResult, regenerateSummary, type RunResult } from "./report.js";
@@ -101,6 +105,18 @@ function fakeReviewJson(c: Case, better: boolean): string {
   return JSON.stringify({ summary: `Fake review of "${c.title}".`, findings });
 }
 
+/** Scripted fake for the agent loop: pull the diff once, then emit the review. */
+function fakeAgentLlm(c: Case): FakeLlm {
+  return new FakeLlm(({ turn }) => {
+    if (turn === 0) {
+      return {
+        toolUses: [{ id: "t0", name: "get_diff", input: {} }],
+      };
+    }
+    return { text: fakeReviewJson(c, true) };
+  });
+}
+
 async function reviewCase(
   c: Case,
   args: Args,
@@ -109,21 +125,38 @@ async function reviewCase(
 ): Promise<TReview> {
   const [owner, repo] = c.repo.split("/") as [string, string];
   const meta = await gh.getPrMetadata(owner, repo, c.pr);
-  const diff = await gh.getDiff(owner, repo, c.pr);
+  const changedFiles = await gh.listChangedFiles(owner, repo, c.pr);
+  const getDiff = (path?: string) => gh.getDiff(owner, repo, c.pr, path);
 
-  if (args.fake) {
-    const llm = new FakeLlm(() => ({
-      text: fakeReviewJson(c, args.mode === "agent"),
-    }));
-    return runBaseline({ meta, diff, model: args.model, llm });
+  if (args.mode === "baseline") {
+    const diff = await getDiff();
+    const llm = args.fake
+      ? new FakeLlm(() => ({ text: fakeReviewJson(c, false) }))
+      : undefined;
+    return runBaseline({ meta, diff, model: args.model, apiKey, llm });
   }
 
-  if (args.mode === "agent") {
-    throw new Error(
-      "agent mode is not wired yet (Block 3). Use --mode baseline, or --fake.",
-    );
-  }
-  return runBaseline({ meta, diff, model: args.model, apiKey });
+  // agent mode
+  const checkout = args.fake
+    ? null
+    : ensureCheckout(owner, repo, c.baseSha, c.headSha);
+  const llm: LlmClient | FakeLlm = args.fake
+    ? fakeAgentLlm(c)
+    : new LlmClient({ apiKey: apiKey!, model: args.model });
+  const logger = new RunLogger(
+    "trajectories",
+    `eval-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "")}`,
+    c.id,
+  );
+  return runAgent(meta, {
+    llm,
+    repo: checkout ? { dir: checkout.dir } : null,
+    headSha: c.headSha,
+    getDiff,
+    changedFiles,
+    logger,
+    verify: !args.fake,
+  });
 }
 
 async function main(): Promise<void> {
