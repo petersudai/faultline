@@ -1,0 +1,16 @@
+[
+  {
+    "filename": "src/utils/stream.test.ts",
+    "status": "modified",
+    "additions": 53,
+    "deletions": 0,
+    "patch": "@@ -156,4 +156,57 @@ describe('StreamingApi', () => {\n     expect(handleAbort2).toHaveBeenCalledOnce()\n     expect(api.aborted).toBe(true)\n   })\n+\n+  it('abort() continues when an abort listener throws', async () => {\n+    const { readable, writable } = new TransformStream()\n+    const handleAbort = vi.fn()\n+    const api = new StreamingApi(writable, readable)\n+    api.onAbort(() => {\n+      throw new Error('cleanup failed')\n+    })\n+    api.onAbort(handleAbort)\n+    api.abort()\n+    expect(api.aborted).toBe(true)\n+    expect(handleAbort).toHaveBeenCalledOnce()\n+  })\n+\n+  it('abort() handles a rejecting thenable returned by a listener', async () => {\n+    const { readable, writable } = new TransformStream()\n+    const api = new StreamingApi(writable, readable)\n+    const unhandled = vi.fn()\n+    process.on('unhandledRejection', unhandled)\n+    try {\n+      api.onAbort(\n+        () =>\n+          ({\n+            then: (_resolve: unknown, reject: (reason: unknown) => void) =>\n+              reject(new Error('thenable cleanup failed')),\n+          }) as unknown as Promise<void>\n+      )\n+      api.abort()\n+      expect(api.aborted).toBe(true)\n+      await new Promise((resolve) => setTimeout(resolve, 0))\n+      expect(unhandled).not.toHaveBeenCalled()\n+    } finally {\n+      process.off('unhandledRejection', unhandled)\n+    }\n+  })\n+\n+  it('abort() does not leave an unhandled rejection when an async listener rejects', async () => {\n+    const { readable, writable } = new TransformStream()\n+    const api = new StreamingApi(writable, readable)\n+    const unhandled = vi.fn()\n+    process.on('unhandledRejection', unhandled)\n+    try {\n+      api.onAbort(async () => {\n+        throw new Error('async cleanup failed')\n+      })\n+      api.abort()\n+      expect(api.aborted).toBe(true)\n+      await new Promise((resolve) => setTimeout(resolve, 0))\n+      expect(unhandled).not.toHaveBeenCalled()\n+    } finally {\n+      process.off('unhandledRejection', unhandled)\n+    }\n+  })\n })"
+  },
+  {
+    "filename": "src/utils/stream.ts",
+    "status": "modified",
+    "additions": 7,
+    "deletions": 1,
+    "patch": "@@ -95,7 +95,13 @@ export class StreamingApi {\n   abort() {\n     if (!this.aborted) {\n       this.aborted = true\n-      this.abortSubscribers.forEach((subscriber) => subscriber())\n+      this.abortSubscribers.forEach((subscriber) => {\n+        try {\n+          void Promise.resolve(subscriber()).catch(() => {})\n+        } catch {\n+          // Ignore synchronous listener errors.\n+        }\n+      })\n     }\n   }\n }"
+  }
+]

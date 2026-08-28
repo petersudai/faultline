@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+out/
+trajectories/
+.cache/repos/
+
+# Committed on purpose (reproducibility): .cache/gh/, .cache/tools/, results/
