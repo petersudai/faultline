@@ -46,9 +46,12 @@ function required(name: string): string {
 }
 
 export function loadConfig(
-  opts: { offline?: boolean; needGithub?: boolean } = {},
+  opts: { offline?: boolean; needGithub?: boolean; needAnthropic?: boolean } = {},
 ): Config {
-  const anthropicApiKey = required("ANTHROPIC_API_KEY");
+  const anthropicApiKey =
+    opts.needAnthropic === false
+      ? (process.env.ANTHROPIC_API_KEY?.trim() ?? "")
+      : required("ANTHROPIC_API_KEY");
   const githubToken = process.env.GITHUB_TOKEN?.trim() || undefined;
   const offline = opts.offline ?? false;
 

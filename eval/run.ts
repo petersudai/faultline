@@ -239,7 +239,7 @@ function fallbackReview(c: Case, mode: string, msg: string): TReview {
 }
 
 async function preflight(args: Args): Promise<void> {
-  const cfg = loadConfig({ offline: true, needGithub: false });
+  const cfg = loadConfig({ offline: true, needGithub: false, needAnthropic: false });
   const cases = loadCases(args.ids ? { ids: args.ids } : {});
   const gh = new GithubClient({ token: cfg.githubToken, cache: { offline: true } });
   let ok = 0;
