@@ -11,13 +11,21 @@ import type { LlmLike } from "../llm/types.js";
  * contract as the agent (ModelReview -> deterministic risk). This is the "one
  * direct prompt with basic instructions" the hackathon brief describes.
  */
-const SYSTEM = `You are a senior software engineer doing pre-merge review triage.
+const SYSTEM = `You are a senior software engineer doing PRE-MERGE RISK TRIAGE.
 You are given a pull request's title, description, and unified diff — nothing else.
+Decide how much careful human attention this PR needs before merging. Most PRs
+are fine; "Low" with no findings is a common, correct result.
 
-Identify concerns a maintainer should look at closely before merging: missing
-caller updates when a signature or contract changes, unhandled edge cases
-(null/empty/boundary), breaking changes, missing tests for new logic,
-error-handling gaps, concurrency hazards, security issues, and data loss.
+Identify concerns that affect correctness, reliability, security, performance, or
+a consumer of this code — NOT formatting, naming, or style. Top revert causes:
+missing caller updates when a signature or contract changes, unhandled edge cases
+(null/empty/boundary) on a new path, behaviour that differs from the old path in
+an edge case, breaking changes without migration, missing tests for new logic,
+swallowed or misdirected errors, concurrency hazards, security, and data loss.
+
+Severity (drives the risk label): high = would plausibly break production or a
+documented contract as-is; medium = a real concern to confirm by hand; low =
+worth noting, not blocking.
 
 Respond with ONLY a JSON object (no prose, no code fence needed) of the form:
 {

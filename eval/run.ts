@@ -18,6 +18,7 @@ interface Args {
   mode: "baseline" | "agent";
   offline: boolean;
   fake: boolean;
+  preflight: boolean;
   ids: string[] | undefined;
   model: string;
   concurrency: number;
@@ -38,6 +39,7 @@ function parseArgs(): Args {
     mode: modeRaw,
     offline: has("--offline"),
     fake: has("--fake"),
+    preflight: has("--preflight"),
     ids: val("--cases")?.split(",").map((s) => s.trim()).filter(Boolean),
     model: val("--model") ?? process.env.FAULTLINE_MODEL ?? MODELS.haiku,
     concurrency: Number(val("--concurrency") ?? "3"),
@@ -162,8 +164,45 @@ async function reviewCase(
   });
 }
 
+async function preflight(args: Args): Promise<void> {
+  const cfg = loadConfig({ offline: true, needGithub: false });
+  const cases = loadCases(args.ids ? { ids: args.ids } : {});
+  const gh = new GithubClient({
+    token: cfg.githubToken,
+    cache: { offline: true },
+  });
+  let ok = 0;
+  console.log(`preflight · ${cases.length} cases · offline cache only\n`);
+  for (const c of cases) {
+    const [o, r] = c.repo.split("/") as [string, string];
+    const problems: string[] = [];
+    try {
+      const meta = await gh.getPrMetadata(o, r, c.pr);
+      if (meta.baseSha !== c.baseSha) problems.push("baseSha mismatch");
+      const files = await gh.listChangedFiles(o, r, c.pr);
+      if (!files.length) problems.push("no changed files");
+      const diff = await gh.getDiff(o, r, c.pr);
+      if (diff.length < 20) problems.push("empty diff");
+      if (diff.length > 200_000) problems.push(`diff very large (${diff.length}c)`);
+    } catch (e) {
+      problems.push(e instanceof Error ? e.message.split("\n")[0]! : String(e));
+    }
+    const status = problems.length ? `FAIL ${problems.join("; ")}` : "ok";
+    if (!problems.length) ok++;
+    console.log(`  ${c.id} ${c.label.padEnd(5)} ${status}`);
+  }
+  console.log(`\n${ok}/${cases.length} ready`);
+  if (ok < cases.length) process.exit(1);
+}
+
 async function main(): Promise<void> {
   const args = parseArgs();
+
+  if (args.preflight) {
+    await preflight(args);
+    return;
+  }
+
   const cfg = loadConfig({ offline: args.offline, needGithub: !args.offline });
   const cases = loadCases(args.ids ? { ids: args.ids } : {});
 
