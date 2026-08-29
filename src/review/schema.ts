@@ -22,12 +22,16 @@ export const FindingCategory = z.enum([
 ]);
 export type FindingCategory = z.infer<typeof FindingCategory>;
 
+/**
+ * Tolerant on the fields models fumble: an invented category becomes "other",
+ * a non-integer / negative line becomes null, an odd severity becomes "medium".
+ * The substance (file, rationale, check) still has to be there.
+ */
 export const Finding = z.object({
-  severity: Severity,
+  severity: Severity.catch("medium"),
   file: z.string().min(1),
-  /** null = file-level finding with no single line */
-  line: z.number().int().nonnegative().nullable(),
-  category: FindingCategory,
+  line: z.number().int().nonnegative().nullable().catch(null),
+  category: FindingCategory.catch("other"),
   rationale: z.string().min(1),
   suggestedCheck: z.string().min(1),
 });
@@ -81,6 +85,6 @@ export type Review = z.infer<typeof Review>;
 export const ModelReview = z.object({
   summary: z.string().min(1),
   findings: z.array(Finding),
-  riskScore: z.number().min(0).max(1),
+  riskScore: z.number().min(0).max(1).catch(0.5),
 });
 export type ModelReview = z.infer<typeof ModelReview>;

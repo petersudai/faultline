@@ -12,8 +12,10 @@ export interface Scored {
   label: "risky" | "clean";
   hard: boolean;
   predictedRisk: string;
-  predictedHigh: boolean;
-  correct: boolean;
+  predictedHigh: boolean; // strict: risk === "High"
+  predictedFlagged: boolean; // triage: risk !== "Low"
+  correct: boolean; // strict
+  correctTriage: boolean;
   modelRiskScore: number;
   derivedRiskScore: number;
   rootCauseHit: boolean | null; // null for clean cases
@@ -32,8 +34,7 @@ export interface CalibrationBin {
   observedRiskyRate: number;
 }
 
-export interface Scorecard {
-  n: number;
+export interface BinaryMetrics {
   confusion: { tp: number; fp: number; tn: number; fn: number };
   accuracy: number;
   balancedAccuracy: number;
@@ -41,6 +42,20 @@ export interface Scorecard {
   recall: number;
   specificity: number;
   f1: number;
+}
+
+export interface Scorecard {
+  n: number;
+  // strict: "High" = predicted risky. The headline.
+  confusion: { tp: number; fp: number; tn: number; fn: number };
+  accuracy: number;
+  balancedAccuracy: number;
+  precision: number;
+  recall: number;
+  specificity: number;
+  f1: number;
+  // triage: "High or Medium" = flagged for a closer look.
+  triage: BinaryMetrics;
   riskyCount: number;
   rootCauseHits: number;
   rootCauseHitRate: number;
@@ -144,13 +159,17 @@ export function scoreOne(c: Case, review: Review): Scored {
     borderline = !hit && fileOnly;
   }
 
+  const predictedFlagged = review.risk !== "Low";
+
   return {
     caseId: c.id,
     label: c.label,
     hard: c.hard,
     predictedRisk: review.risk,
     predictedHigh,
+    predictedFlagged,
     correct: predictedHigh === actualRisky,
+    correctTriage: predictedFlagged === actualRisky,
     modelRiskScore: review.modelRiskScore,
     derivedRiskScore: review.derivedRiskScore,
     rootCauseHit,
@@ -166,19 +185,34 @@ export function scoreAll(pairs: { c: Case; review: Review }[]): Scorecard {
   const perCase = pairs.map(({ c, review }) => scoreOne(c, review));
   const n = perCase.length;
 
-  let tp = 0, fp = 0, tn = 0, fn = 0;
-  for (const s of perCase) {
-    const actualRisky = s.label === "risky";
-    if (s.predictedHigh && actualRisky) tp++;
-    else if (s.predictedHigh && !actualRisky) fp++;
-    else if (!s.predictedHigh && !actualRisky) tn++;
-    else fn++;
-  }
+  const binary = (pred: (s: Scored) => boolean): BinaryMetrics => {
+    let tp = 0, fp = 0, tn = 0, fn = 0;
+    for (const s of perCase) {
+      const actualRisky = s.label === "risky";
+      if (pred(s) && actualRisky) tp++;
+      else if (pred(s) && !actualRisky) fp++;
+      else if (!pred(s) && !actualRisky) tn++;
+      else fn++;
+    }
+    const recall = tp + fn ? tp / (tp + fn) : 0;
+    const specificity = tn + fp ? tn / (tn + fp) : 0;
+    const precision = tp + fp ? tp / (tp + fp) : 0;
+    const f1 = precision + recall ? (2 * precision * recall) / (precision + recall) : 0;
+    return {
+      confusion: { tp, fp, tn, fn },
+      accuracy: perCase.length ? (tp + tn) / perCase.length : 0,
+      balancedAccuracy: (recall + specificity) / 2,
+      precision,
+      recall,
+      specificity,
+      f1,
+    };
+  };
 
-  const recall = tp + fn ? tp / (tp + fn) : 0;
-  const specificity = tn + fp ? tn / (tn + fp) : 0;
-  const precision = tp + fp ? tp / (tp + fp) : 0;
-  const f1 = precision + recall ? (2 * precision * recall) / (precision + recall) : 0;
+  const strict = binary((s) => s.predictedHigh);
+  const triage = binary((s) => s.predictedFlagged);
+  const { tp, fp, tn, fn } = strict.confusion;
+  const { recall, specificity, precision, f1 } = strict;
 
   const risky = perCase.filter((s) => s.label === "risky");
   const clean = perCase.filter((s) => s.label === "clean");
@@ -198,12 +232,13 @@ export function scoreAll(pairs: { c: Case; review: Review }[]): Scorecard {
   return {
     n,
     confusion: { tp, fp, tn, fn },
-    accuracy: n ? (tp + tn) / n : 0,
-    balancedAccuracy: (recall + specificity) / 2,
+    accuracy: strict.accuracy,
+    balancedAccuracy: strict.balancedAccuracy,
     precision,
     recall,
     specificity,
     f1,
+    triage,
     riskyCount: risky.length,
     rootCauseHits,
     rootCauseHitRate: risky.length ? rootCauseHits / risky.length : 0,

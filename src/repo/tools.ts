@@ -55,19 +55,39 @@ function getContent(ctx: RepoContext, path: string, ref?: string): string | null
   }
 }
 
-const DEFAULT_MAX_LINES = 1600;
-const HEAD_LINES = 240;
-const TAIL_LINES = 60;
+const DEFAULT_MAX_LINES = 450; // a whole-file dump must fit the tool-result budget
+const HEAD_LINES = 180;
+const TAIL_LINES = 50;
+const WINDOW_CONTEXT = 55;
 
 function numbered(lines: string[], from: number): string {
   return lines.map((l, i) => `${from + i}\t${l}`).join("\n");
 }
 
+function windows(lines: string[], anchors: number[], ctxN: number): string {
+  const ranges: [number, number][] = [...anchors]
+    .sort((a, b) => a - b)
+    .map((a) => [Math.max(1, a - ctxN), Math.min(lines.length, a + ctxN)]);
+  const merged: [number, number][] = [];
+  for (const [s, e] of ranges) {
+    const last = merged[merged.length - 1];
+    if (last && s <= last[1] + 1) last[1] = Math.max(last[1], e);
+    else merged.push([s, e]);
+  }
+  const parts = [`(${lines.length} lines total; showing ${merged.length} window(s))`];
+  for (const [s, e] of merged) {
+    parts.push(`\n--- lines ${s}-${e} ---`);
+    parts.push(numbered(lines.slice(s - 1, e), s));
+  }
+  return parts.join("\n");
+}
+
 /**
  * Read a file at a revision (default: checked-out base) with line numbers.
- *  - <= maxLines: whole file
- *  - larger, `around` given: merged windows of ±context lines
- *  - larger, no `around`: head + tail with an elision marker
+ *  - `around` given: ALWAYS windowed to ±context around those lines (this is the
+ *    agent explicitly asking for a region — honour it regardless of file size)
+ *  - no `around`, file <= maxLines: whole file
+ *  - no `around`, larger: head + tail with an elision marker
  */
 export function readFile(
   ctx: RepoContext,
@@ -83,34 +103,20 @@ export function readFile(
   if (raw == null) return `(file not present at ${opts.ref ?? "base"}: ${path})`;
 
   const lines = splitLines(raw);
-  const maxLines = opts.maxLines ?? DEFAULT_MAX_LINES;
-  if (lines.length <= maxLines) return numbered(lines, 1);
 
   if (opts.around && opts.around.length) {
-    const ctxN = opts.context ?? 45;
-    const ranges: [number, number][] = [...opts.around]
-      .sort((a, b) => a - b)
-      .map((a) => [Math.max(1, a - ctxN), Math.min(lines.length, a + ctxN)]);
-    const merged: [number, number][] = [];
-    for (const [s, e] of ranges) {
-      const last = merged[merged.length - 1];
-      if (last && s <= last[1] + 1) last[1] = Math.max(last[1], e);
-      else merged.push([s, e]);
-    }
-    const parts = [`(${lines.length} lines; ${merged.length} window(s) shown)`];
-    for (const [s, e] of merged) {
-      parts.push(`\n--- ${s}-${e} ---`);
-      parts.push(numbered(lines.slice(s - 1, e), s));
-    }
-    return parts.join("\n");
+    return windows(lines, opts.around, opts.context ?? WINDOW_CONTEXT);
   }
+
+  const maxLines = opts.maxLines ?? DEFAULT_MAX_LINES;
+  if (lines.length <= maxLines) return numbered(lines, 1);
 
   const head = numbered(lines.slice(0, HEAD_LINES), 1);
   const tailStart = lines.length - TAIL_LINES + 1;
   const tail = numbered(lines.slice(tailStart - 1), tailStart);
   return (
     `(${lines.length} lines; showing first ${HEAD_LINES} and last ${TAIL_LINES} — ` +
-    `call again with { around: [lineNumbers] } to see the middle)\n` +
+    `call again with { around: [lineNumbers] } to see a specific region)\n` +
     head +
     `\n… ${lines.length - HEAD_LINES - TAIL_LINES} lines omitted …\n` +
     tail

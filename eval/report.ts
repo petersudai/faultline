@@ -24,7 +24,8 @@ export function readAllResults(): RunResult[] {
   if (!existsSync(RESULTS_DIR)) return [];
   const runs = readdirSync(RESULTS_DIR)
     .filter((f) => f.endsWith(".json"))
-    .map((f) => JSON.parse(readFileSync(join(RESULTS_DIR, f), "utf8")) as RunResult);
+    .map((f) => JSON.parse(readFileSync(join(RESULTS_DIR, f), "utf8")) as RunResult)
+    .filter((r) => r?.scorecard?.triage); // skip results from an older schema
   return runs.sort((a, b) => {
     const ia = MODE_ORDER.indexOf(a.mode);
     const ib = MODE_ORDER.indexOf(b.mode);
@@ -47,11 +48,12 @@ function metricTable(runs: RunResult[]): string {
   const head = `| metric | ${runs.map((r) => r.mode).join(" | ")} |`;
   const sep = `|--------|${runs.map(() => "------").join("|")}|`;
   const lines = [head, sep];
-  lines.push(row("**Balanced accuracy** (primary)", runs, (s) => pct(s.balancedAccuracy)));
-  lines.push(row("Recall (risky caught)", runs, (s) => pct(s.recall)));
-  lines.push(row("Specificity (clean passed)", runs, (s) => pct(s.specificity)));
-  lines.push(row("Precision", runs, (s) => pct(s.precision)));
-  lines.push(row("F1", runs, (s) => pct(s.f1)));
+  lines.push(row("**Bal. accuracy — strict** (High = block)", runs, (s) => pct(s.balancedAccuracy)));
+  lines.push(row("· recall (risky → High)", runs, (s) => pct(s.recall)));
+  lines.push(row("· specificity (clean → not-High)", runs, (s) => pct(s.specificity)));
+  lines.push(row("**Bal. accuracy — triage** (High/Med = look closer)", runs, (s) => pct(s.triage.balancedAccuracy)));
+  lines.push(row("· recall (risky → flagged)", runs, (s) => pct(s.triage.recall)));
+  lines.push(row("· specificity (clean → Low)", runs, (s) => pct(s.triage.specificity)));
   lines.push(row("Root-cause hit rate", runs, (s) => `${s.rootCauseHits}/${s.riskyCount} (${pct(s.rootCauseHitRate)})`));
   lines.push(row("False-alarm rate (high/clean PR)", runs, (s) => s.falseAlarmRate.toFixed(2)));
   lines.push(row("Hard cases correct", runs, (s) => `${s.hardCorrect}/${s.hardTotal}`));

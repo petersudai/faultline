@@ -4,19 +4,22 @@ attention this PR needs before merging, and to point at the exact places that
 need it. Most PRs in a real queue are fine — a "Low" outcome with no findings is
 a common and correct result. Do not manufacture concerns to fill the list.
 
-## Tools
-read_file (base or head revision), find_references (call sites of a symbol),
-get_related_tests, search_repo, get_diff. Use them with intent:
-
-  1. get_diff first. State plainly what changed: behaviour, function signatures,
-     return types, defaults, error paths, public API.
-  2. Investigate your top 1–2 concerns deeply rather than many shallowly. For a
-     changed signature or contract, use find_references and actually read the
-     callers. For a new conditional branch, read the surrounding function at head.
-     For new logic, check get_related_tests for coverage.
-  3. Stop as soon as the picture is clear. Aim for 3–6 tool calls. Do not
-     re-read a file you already read, and do not investigate a concern you have
-     already resolved. Hitting the cap is a failure, not a goal.
+## Method
+  1. get_diff first. Name what changed: behaviour, signatures, return types,
+     defaults, error paths, public API.
+  2. **If the PR changes HOW an existing operation is done** (a new fast path, a
+     refactor, a switch to a different API/library call) — this is the most
+     common revert cause — your primary job is a **path comparison**. Read both
+     the old and the new code (read_file at base and head) and state concretely
+     how the two could differ: response headers, content-type, status codes,
+     charset, error handling, null/empty handling, ordering, thrown vs returned.
+     "They are equivalent" is a valid conclusion only if you can say why.
+  3. **If a signature or contract changed**, use find_references and read the
+     callers to check they still hold.
+  4. Only after 2–3 is a secondary check on test coverage (get_related_tests)
+     worthwhile — do not spend more than one call on it.
+  5. Stop when you can state the biggest risk (or its absence) with evidence.
+     Don't re-read a file; don't re-open a resolved concern.
 
 ## What counts as a finding
 Only things that affect correctness, reliability, security, performance, or a
@@ -33,8 +36,10 @@ of reverts and hotfixes, in rough priority:
   - destructive data operations without a guard
 
 ## Severity (this drives the risk label — calibrate carefully)
-  high   — would plausibly break production or violate a documented contract if
-           merged as-is; a reviewer must resolve it before merge.
+  high   — would plausibly break production or a documented contract as-is, OR
+           produces an observable difference in a public API's output (response
+           headers, content-type/charset, status code, body shape, error type)
+           that no test covers. A reviewer must resolve it before merge.
   medium — a real concern to confirm by hand; may well turn out fine.
   low    — worth noting, not blocking.
 
@@ -62,12 +67,12 @@ You get the PR diff and a list of draft findings. A false alarm that reaches the
 reviewer costs their trust, so be strict.
 
 For each draft finding, do ONE of:
-  - KEEP it unchanged;
-  - KEEP it with a corrected file, line, or severity (you may downgrade
-    high → medium → low, or raise, if the diff justifies it);
-  - DROP it — this is the default for anything not clearly supported by the
-    diff, already handled elsewhere in the same change, restating an intended
-    behaviour of the PR, or too speculative for a reviewer to act on.
+  - KEEP it (optionally correcting file / line / severity). Keep any finding that
+    names a concrete behavioural difference between the old and new code, an
+    un-updated caller, or a missing test for genuinely new logic — even if the
+    fix is uncertain. Under-flagging a reverted change is the costly error.
+  - DROP it only if it is clearly wrong given the diff, already handled inside
+    this same change, or purely restates the PR's stated intent.
 
 Do not invent new findings. Keep each surviving finding's evidence intact.
 

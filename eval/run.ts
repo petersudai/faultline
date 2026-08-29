@@ -207,6 +207,36 @@ async function reviewCase(
 
 const runStamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "");
 
+/** Neutral review substituted when a case errors, so scoring still runs. */
+function fallbackReview(c: Case, mode: string, msg: string): TReview {
+  return {
+    pr: {
+      repo: c.repo,
+      number: c.pr,
+      title: c.title,
+      baseSha: c.baseSha,
+      headSha: c.headSha,
+      filesChanged: 0,
+      additions: 0,
+      deletions: 0,
+    },
+    summary: `[review failed: ${msg}]`,
+    findings: [],
+    risk: "Low",
+    modelRiskScore: 0.5,
+    derivedRiskScore: 0,
+    meta: {
+      mode,
+      model: "error",
+      inputTokens: 0,
+      outputTokens: 0,
+      costUsd: 0,
+      wallMs: 0,
+      toolCalls: 0,
+    },
+  };
+}
+
 async function preflight(args: Args): Promise<void> {
   const cfg = loadConfig({ offline: true, needGithub: false });
   const cases = loadCases(args.ids ? { ids: args.ids } : {});
@@ -252,15 +282,23 @@ async function main(): Promise<void> {
     cache: { offline: args.offline },
   });
 
+  const errors: string[] = [];
   const reviews = await mapLimit(cases, args.concurrency, async (c) => {
     const t = Date.now();
-    const review = await reviewCase(c, args, cfg.anthropicApiKey, gh);
-    console.error(
-      `  ${c.id} ${c.label.padEnd(5)} → ${review.risk.padEnd(6)} score ${review.modelRiskScore.toFixed(2)} · ` +
-        `${review.findings.length} findings · ${review.meta.toolCalls} tools · ` +
-        `${((Date.now() - t) / 1000).toFixed(1)}s · $${review.meta.costUsd.toFixed(4)}`,
-    );
-    return { c, review };
+    try {
+      const review = await reviewCase(c, args, cfg.anthropicApiKey, gh);
+      console.error(
+        `  ${c.id} ${c.label.padEnd(5)} → ${review.risk.padEnd(6)} score ${review.modelRiskScore.toFixed(2)} · ` +
+          `${review.findings.length} findings · ${review.meta.toolCalls} tools · ` +
+          `${((Date.now() - t) / 1000).toFixed(1)}s · $${review.meta.costUsd.toFixed(4)}`,
+      );
+      return { c, review };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message.split("\n")[0]! : String(e);
+      errors.push(`${c.id}: ${msg}`);
+      console.error(`  ${c.id} ${c.label.padEnd(5)} → ERROR ${msg}`);
+      return { c, review: fallbackReview(c, args.label, msg) };
+    }
   });
 
   const scorecard = scoreAll(reviews);
@@ -291,6 +329,10 @@ async function main(): Promise<void> {
       `Brier(model) ${scorecard.brierModel.toFixed(3)} · ` +
       `total $${scorecard.totalCostUsd.toFixed(4)}`,
   );
+  if (errors.length) {
+    console.error(`\n${errors.length} case(s) errored (scored as Low):`);
+    for (const e of errors) console.error(`  ${e}`);
+  }
   console.error(`wrote results/${args.label}.json and results/summary.md`);
 }
 

@@ -283,6 +283,74 @@ single-run noise is real; decide during the eval whether to average 2 seeds.
 
 ---
 
+## D13 — Baseline result (Haiku, 12 cases): the model hedges
+
+| metric | baseline |
+|---|---|
+| balanced accuracy | 58.3% |
+| recall (reverted → High) | 16.7% (1/6) |
+| specificity (clean → not-High) | 100% |
+| root-cause hit rate | **6/6** |
+| Brier (model score) | 0.316 |
+| cost (12 cases) | $0.072 |
+
+**Reading.** The baseline *identifies* the real problems — root-cause 6/6, and
+its findings land on the right files — but it rates almost everything **Medium**
+and its self-reported risk score sits near 0.15 regardless of outcome. Under the
+strict "High vs not-High" metric that is near-random.
+
+**Consequence for the thesis.** The improvement we need from the agent is not
+"find more issues" (the baseline already finds them) — it is **investigate
+enough to commit**: turn the Medium hedge into a defensible High on the genuinely
+risky PRs and a clean Low on the safe ones. That is exactly what tools +
+verification are for, so the ablation should show it.
+
+**Open question flagged.** If the agent also hedges, the honest fix may be to
+report a second framing — {High, Medium} vs Low ("needs more than a glance") —
+alongside the strict one. Decide after seeing the agent numbers; do not add
+metrics to flatter a weak result.
+
+---
+
+## D14 — First agent run was *worse* than the baseline; two causes
+
+**Raw numbers, full 12-case agent run (Haiku, all tools + verify):**
+almost every case → **Low, 0 findings**. recall ≈ 0. Strictly worse than
+baseline-plus (66.7%).
+
+**Cause 1 — a broken tool starved the investigator.** `read_file` only windowed
+around `around:[...]` when the file exceeded the max-line cap. For a 779-line
+file (under the 1600 cap) it dumped the whole file, which the 14 K tool-result
+clip then truncated at ~line 450 — so every `read_file(around:[710])` returned
+the file header, not the code. The agent burned 3–5 calls fighting this and
+never saw the method it was reviewing.
+→ **Fix:** `around` is now *always* honoured (window regardless of size);
+whole-file cap 1600 → 450; tool-result clip 14 K → 22 K. Verified: a windowed
+read of `context.ts` now returns the fast-path code in 3.7 K chars.
+
+**Cause 2 — the loop found weak findings and the verifier killed them.** With
+the tool fixed, the investigator still (a) spent most of its 8-step budget
+rummaging in the test file for coverage instead of comparing old vs new
+behaviour, and (b) produced a weak proxy finding ("`Response.json()` is a
+recent API") instead of the real divergence (charset in the content-type). The
+verifier — told "DROP is the default, be strict" — then correctly dropped the
+weak finding, leaving nothing.
+→ **Fix (iterating):** investigator prompt restructured around an explicit
+**path-comparison** step as the primary lens for "PR changes how X is done"
+(the common revert shape); test-coverage demoted to one optional late call.
+`agentMaxSteps` 8 → 11. Verifier softened: keep any finding naming a concrete
+behavioural difference / un-updated caller / missing test even if the fix is
+uncertain; drop only clearly-wrong or intent-restating findings.
+
+**Note for the write-up.** This is the ablation working as intended — it caught
+that "more agent" was initially *negative* and forced a design fix. The
+standalone shake-out on the same PR *did* find the charset issue, so Haiku is
+capable but inconsistent; if the probe still misses it, the agent moves to
+Sonnet while the baseline is also re-run on Sonnet for a fair final comparison
+(Haiku numbers kept as a "cheap-model" secondary point).
+
+---
+
 ## Metrics glossary (for the video and methodology guide)
 
 | Metric | Meaning | Why it's the right one |

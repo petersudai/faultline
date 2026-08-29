@@ -59,7 +59,7 @@ function assistantContent(text: string, toolUses: { id: string; name: string; in
   return blocks;
 }
 
-const MAX_TOOL_RESULT_CHARS = 14_000;
+const MAX_TOOL_RESULT_CHARS = 22_000;
 
 function clip(s: string): string {
   return s.length > MAX_TOOL_RESULT_CHARS
