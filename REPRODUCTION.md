@@ -22,9 +22,22 @@ cp .env.example .env
 #   (GITHUB_TOKEN only needed for live single-PR runs, not the eval)
 ```
 
+## Sanity checks (no spend)
+
+```bash
+npm test              # 21 unit tests: classifier, scoring, renderer, JSON extraction
+npm run preflight     # all 12 cases resolve from the committed cache
+```
+
 ## Run the evaluation
 
-Baseline — one model call per PR on the diff:
+Everything at once (baseline → agent → report):
+
+```bash
+npm run eval:all
+```
+
+…or step by step. Baseline — one model call per PR on the diff:
 
 ```bash
 npm run eval -- --mode baseline --offline

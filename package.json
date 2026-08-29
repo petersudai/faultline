@@ -12,6 +12,8 @@
   "scripts": {
     "faultline": "tsx src/cli.ts",
     "eval": "tsx eval/run.ts",
+    "eval:all": "tsx eval/run.ts --mode baseline --offline && tsx eval/run.ts --mode agent --offline && tsx eval/report.ts",
+    "preflight": "tsx eval/run.ts --preflight",
     "report": "tsx eval/report.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test \"test/*.test.ts\"",
