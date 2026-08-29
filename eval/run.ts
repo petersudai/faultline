@@ -156,6 +156,7 @@ async function reviewCase(
   args: Args,
   apiKey: string | undefined,
   gh: GithubClient,
+  githubToken?: string,
 ): Promise<TReview> {
   const [owner, repo] = c.repo.split("/") as [string, string];
   const meta = await gh.getPrMetadata(owner, repo, c.pr);
@@ -169,7 +170,7 @@ async function reviewCase(
       : undefined;
     let contextFiles: ContextFile[] | undefined;
     if (args.mode === "baseline-plus" && !args.fake) {
-      const co = ensureCheckout(owner, repo, c.baseSha, c.headSha);
+      const co = ensureCheckout(owner, repo, c.baseSha, c.headSha, githubToken);
       contextFiles = await contextFilesAt(co.dir, c.headSha, changedFiles);
     }
     return runBaseline({
@@ -186,7 +187,7 @@ async function reviewCase(
   // agent
   const checkout = args.fake
     ? null
-    : ensureCheckout(owner, repo, c.baseSha, c.headSha);
+    : ensureCheckout(owner, repo, c.baseSha, c.headSha, githubToken);
   const llm = args.fake
     ? fakeAgentLlm(c)
     : new LlmClient({ apiKey: apiKey!, model: args.model });
@@ -287,7 +288,7 @@ async function main(): Promise<void> {
   const reviews = await mapLimit(cases, args.concurrency, async (c) => {
     const t = Date.now();
     try {
-      const review = await reviewCase(c, args, cfg.anthropicApiKey, gh);
+      const review = await reviewCase(c, args, cfg.anthropicApiKey, gh, cfg.githubToken);
       console.error(
         `  ${c.id} ${c.label.padEnd(5)} → ${review.risk.padEnd(6)} score ${review.modelRiskScore.toFixed(2)} · ` +
           `${review.findings.length} findings · ${review.meta.toolCalls} tools · ` +

@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { execSync } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
@@ -19,26 +20,52 @@ function git(cwd: string, args: string[]): string {
   });
 }
 
+function gitRetry(cwd: string, args: string[], tries = 3): void {
+  let lastErr: unknown;
+  for (let i = 0; i < tries; i++) {
+    try {
+      git(cwd, args);
+      return;
+    } catch (e) {
+      lastErr = e;
+      // crude sync backoff — network hiccup / unauth rate-limit
+      try {
+        execSync(process.platform === "win32" ? "timeout /t 3 /nobreak >nul" : "sleep 3", {
+          stdio: "ignore",
+        });
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  throw lastErr;
+}
+
 /**
  * Shallow-fetch a PR's base (and head) commits of a public repo into
  * .cache/repos/<owner>-<repo>@<baseSha>. Working tree is at base; head is
- * fetched too so `git show <headSha>:<path>` works. Idempotent. Used by the
- * agent's file tools; the baseline never needs it.
+ * fetched too so `git show <headSha>:<path>` works.
+ *
+ * Pass `token` (a GitHub PAT, even scopeless) to authenticate the clone — it
+ * lifts the fetch rate limit from ~60/hr to 5000/hr. Idempotent.
  */
 export function ensureCheckout(
   owner: string,
   repo: string,
   baseSha: string,
   headSha?: string,
+  token?: string,
 ): Checkout {
   const dir = join(REPOS_DIR, `${owner}-${repo}@${baseSha}`);
-  const url = `https://github.com/${owner}/${repo}.git`;
+  const url = token
+    ? `https://x-access-token:${token}@github.com/${owner}/${repo}.git`
+    : `https://github.com/${owner}/${repo}.git`;
 
   const fetchSha = (sha: string) => {
     try {
-      git(dir, ["fetch", "-q", "--depth", "1", "origin", sha]);
+      gitRetry(dir, ["fetch", "-q", "--depth", "1", "origin", sha]);
     } catch {
-      git(dir, ["fetch", "-q", "--depth", "100", "origin"]);
+      gitRetry(dir, ["fetch", "-q", "--depth", "100", "origin"]);
     }
   };
 

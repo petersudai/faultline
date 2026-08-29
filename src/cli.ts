@@ -68,7 +68,7 @@ async function main(): Promise<void> {
 
   if (args.mode === "agent") {
     console.error("Checking out base + head …");
-    const checkout = ensureCheckout(owner, repo, meta.baseSha, meta.headSha);
+    const checkout = ensureCheckout(owner, repo, meta.baseSha, meta.headSha, cfg.githubToken);
     const llm = new LlmClient({ apiKey: cfg.anthropicApiKey, model: cfg.model });
     const logger = new RunLogger(
       "trajectories",
