@@ -509,9 +509,26 @@ Cloned the pushed repo to a clean directory and ran the judge path:
   `results/baseline.json` to the digit (the baseline is a single temp-0 call, so
   it reproduces exactly; the agent's run-to-run range is documented in D18).
 
-`npm run eval:all` also runs the agent step from a clean clone (~12 min, ~$0.5);
-skipped re-verifying end-to-end since the agent config had already been run
-several times. Repo: `github.com/petersudai/faultline` (private until submission).
+The **agent** step from a clean clone surfaced three real bugs (baseline is
+fully offline; the agent needs a repo checkout, which isn't committed):
+
+1. `ensureCheckout` guarded on `.git` existing, not on the commit being
+   present — a transient fetch failure left `.git` behind and every later run
+   then skipped the fetch forever. Now it checks `git cat-file -e <sha>` and
+   wipes/rebuilds a half-built dir.
+2. Windows MAX_PATH: `.cache/repos/<owner>-<repo>@<40-char sha>/.git/objects/
+   pack/...` overran 260 chars under a deep working dir → "Filename too long".
+   Now short dir names (`<repo12>-<10hex>`) + `-c core.longpaths=true` on every
+   git subcommand.
+3. Unauthenticated `git fetch` hit rate limits after a session of clones. Now
+   the clone URL carries `x-access-token:$GITHUB_TOKEN` when a token is present
+   (5000/hr vs ~60), with a 3× backoff retry.
+
+After the fixes, a fresh clone in a pathological 130-char temp path runs the
+agent path clean: `npm test` 24/24, c07→Low (correct), c01→Medium with
+root-cause hit. `npm run eval:all` reproduces baseline offline and the agent
+with a one-time shallow `git clone` of the target repo (no auth needed, token
+recommended). Repo: `github.com/petersudai/faultline` (private until submission).
 
 ---
 

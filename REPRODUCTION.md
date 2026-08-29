@@ -5,10 +5,15 @@ From a clean machine.
 ## Requirements
 
 - Node ≥ 20 (`.nvmrc` pins 20), npm
-- `git` on PATH (the agent shallow-clones the target repo for its file tools)
-- An Anthropic API key with credit. **No GitHub token needed** for the offline
-  eval — every PR's metadata and diff for the 12 cases is committed under
-  `.cache/gh/`.
+- An Anthropic API key with credit (`ANTHROPIC_API_KEY` in `.env`)
+- `git` on PATH. The **baseline** eval is fully offline (every PR's metadata and
+  diff is committed under `.cache/gh/`). The **agent** eval additionally does a
+  one-time shallow `git clone` of the target repo (`honojs/hono`, ~20 MB) so its
+  file tools can read source at the base/head commits — this needs network to
+  github.com but **no auth**. Setting `GITHUB_TOKEN` (any scopeless PAT) is
+  recommended: it raises the git fetch rate limit from ~60/hr to 5000/hr.
+- Cloning to a short path is wise on Windows (deep temp dirs + git's pack files
+  can exceed MAX_PATH; the code sets `core.longpaths` but a sane path is safer).
 
 ## Setup
 
