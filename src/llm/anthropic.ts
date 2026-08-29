@@ -119,11 +119,15 @@ export class LlmClient {
       }
     }
 
+    // temperature is deprecated on the Claude 5 reasoning models; keep it at 0
+    // for the 4.x models where it still lowers variance.
+    const acceptsTemperature = !/(sonnet|opus|fable)-5/.test(this.model);
+
     const res = await this.withRetry(() =>
       this.client.messages.create({
         model: this.model,
         max_tokens: params.maxTokens ?? 2048,
-        temperature: 0,
+        ...(acceptsTemperature ? { temperature: 0 } : {}),
         system: system as never,
         messages: this.withMovingBreakpoint(params.messages),
         ...(tools ? { tools } : {}),

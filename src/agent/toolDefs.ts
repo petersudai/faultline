@@ -15,13 +15,16 @@ export type ToolName =
   | "get_related_tests"
   | "search_repo";
 
+/** Default tool set. `search_repo` is defined but off by default — in practice
+ *  the agent burned calls on it for little signal; still available via --tools. */
 export const ALL_TOOLS: ToolName[] = [
   "get_diff",
   "read_file",
   "find_references",
   "get_related_tests",
-  "search_repo",
 ];
+
+export const TOOL_NAMES: ToolName[] = [...ALL_TOOLS, "search_repo"];
 
 export interface ToolDeps {
   repo: RepoContext | null;

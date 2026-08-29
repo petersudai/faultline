@@ -14,7 +14,7 @@ export const PRICING: Record<string, { in: number; out: number }> = {
 
 export const LIMITS = {
   /** hard cap on tool-use iterations inside one agent review */
-  agentMaxSteps: 11,
+  agentMaxSteps: 8,
   /** per LLM request */
   llmTimeoutMs: 60_000,
   llmMaxRetries: 4,
