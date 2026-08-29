@@ -1,0 +1,51 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 4707,
+    "title": "perf(context): add fast path to c.json() matching c.text() optimization",
+    "baseSha": "69f303e0c3a45c09e7ec56611973751208737857",
+    "headSha": "a32bdde71473f1534789d0b11ea0eae710e611f7",
+    "filesChanged": 1,
+    "additions": 14,
+    "deletions": 6
+  },
+  "summary": "This PR adds a fast path to `c.json()` using `Response.json(object)` when no status, headers, or prepared headers exist. The critical issue is a behavioral difference in Content-Type headers: `Response.json()` sets `application/json; charset=UTF-8` while the slow path sets only `application/json`. Additionally, the fast path lacks test coverage for the common case of simple `c.json({...})` calls without arguments, and error handling for non-serializable values may differ between paths.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "src/context.ts",
+      "line": 712,
+      "category": "api-contract",
+      "rationale": "The fast path uses `Response.json(object)` which sets `Content-Type: application/json; charset=UTF-8`, while the slow path uses `setDefaultContentType('application/json', headers)` which sets only `application/json` without charset. This creates an observable difference in response headers for the common case of simple JSON responses. The existing test at line 64-71 passes status and headers, so it uses the slow path and doesn't validate the fast path behavior.",
+      "suggestedCheck": "Add a test case for `c.json({ message: 'Hello' })` without any status or headers argument to verify the Content-Type header matches the slow path behavior. Confirm whether the charset should be included or if both paths should be aligned."
+    },
+    {
+      "severity": "medium",
+      "file": "src/context.ts",
+      "line": 711,
+      "category": "test-gap",
+      "rationale": "The fast path is taken when `!arg && !headers && !this.#preparedHeaders && !this.#status && !this.finalized`. However, there is no test that exercises this exact scenario (simple `c.json({...})` with no arguments). The existing `c.json()` test passes status 201 and custom headers, which prevents the fast path from being used.",
+      "suggestedCheck": "Add a test case that calls `c.json({ message: 'Hello' })` with no additional arguments and verify the response status, Content-Type header, and body match expectations."
+    },
+    {
+      "severity": "medium",
+      "file": "src/context.ts",
+      "line": 712,
+      "category": "other",
+      "rationale": "The fast path uses `Response.json(object)` which directly serializes the object. If `object` contains circular references or non-serializable values, `Response.json()` will throw an error that may not be caught by the same error handling as the slow path (which uses `JSON.stringify()` explicitly). This could lead to inconsistent error behavior between fast and slow paths.",
+      "suggestedCheck": "Verify that both code paths handle JSON serialization errors consistently. Test with circular references, BigInt, undefined values, and other non-JSON-serializable types to ensure error handling is equivalent."
+    }
+  ],
+  "risk": "High",
+  "modelRiskScore": 0.62,
+  "derivedRiskScore": 0.7469,
+  "meta": {
+    "mode": "agent",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 8881,
+    "outputTokens": 3799,
+    "costUsd": 0.0690273,
+    "wallMs": 51307,
+    "toolCalls": 12
+  }
+}

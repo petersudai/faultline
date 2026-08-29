@@ -1,8 +1,8 @@
 {
-  "mode": "abl-4-verify",
+  "mode": "abl-R-second",
   "model": "claude-haiku-4-5-20251001",
   "fake": false,
-  "timestamp": "2026-08-29T11:37:42.711Z",
+  "timestamp": "2026-08-29T11:41:14.907Z",
   "caseIds": [
     "c01",
     "c02",
@@ -20,78 +20,78 @@
   "scorecard": {
     "n": 12,
     "confusion": {
-      "tp": 2,
-      "fp": 0,
-      "tn": 6,
-      "fn": 4
+      "tp": 4,
+      "fp": 1,
+      "tn": 5,
+      "fn": 2
     },
-    "accuracy": 0.6666666666666666,
-    "balancedAccuracy": 0.6666666666666666,
-    "precision": 1,
-    "recall": 0.3333333333333333,
-    "specificity": 1,
-    "f1": 0.5,
+    "accuracy": 0.75,
+    "balancedAccuracy": 0.75,
+    "precision": 0.8,
+    "recall": 0.6666666666666666,
+    "specificity": 0.8333333333333334,
+    "f1": 0.7272727272727272,
     "triage": {
       "confusion": {
-        "tp": 3,
+        "tp": 5,
         "fp": 2,
         "tn": 4,
-        "fn": 3
+        "fn": 1
       },
-      "accuracy": 0.5833333333333334,
-      "balancedAccuracy": 0.5833333333333333,
-      "precision": 0.6,
-      "recall": 0.5,
+      "accuracy": 0.75,
+      "balancedAccuracy": 0.75,
+      "precision": 0.7142857142857143,
+      "recall": 0.8333333333333334,
       "specificity": 0.6666666666666666,
-      "f1": 0.5454545454545454
+      "f1": 0.7692307692307692
     },
     "riskyCount": 6,
-    "rootCauseHits": 3,
-    "rootCauseHitRate": 0.5,
-    "falseAlarmRate": 0,
-    "meanFindings": 0.6666666666666666,
-    "meanCostUsd": 0.04621995416666666,
-    "totalCostUsd": 0.5546394499999999,
-    "meanWallMs": 39388.666666666664,
-    "hardCorrect": 2,
+    "rootCauseHits": 5,
+    "rootCauseHitRate": 0.8333333333333334,
+    "falseAlarmRate": 0.3333333333333333,
+    "meanFindings": 1.75,
+    "meanCostUsd": 0.038293954166666665,
+    "totalCostUsd": 0.45952745,
+    "meanWallMs": 45820.166666666664,
+    "hardCorrect": 1,
     "hardTotal": 2,
-    "brierModel": 0.32997499999999996,
-    "brierDerived": 0.3398307291666667,
+    "brierModel": 0.22661666666666666,
+    "brierDerived": 0.21924404499999997,
     "calibrationModel": [
       {
         "lo": 0,
         "hi": 0.2,
-        "n": 8,
-        "meanScore": 0.07,
-        "observedRiskyRate": 0.375
+        "n": 5,
+        "meanScore": 0.05,
+        "observedRiskyRate": 0.2
       },
       {
         "lo": 0.2,
         "hi": 0.4,
-        "n": 3,
-        "meanScore": 0.32666666666666666,
-        "observedRiskyRate": 0.6666666666666666
+        "n": 1,
+        "meanScore": 0.28,
+        "observedRiskyRate": 1
       },
       {
         "lo": 0.4,
         "hi": 0.6,
-        "n": 1,
-        "meanScore": 0.55,
-        "observedRiskyRate": 1
+        "n": 3,
+        "meanScore": 0.47333333333333333,
+        "observedRiskyRate": 0.6666666666666666
       },
       {
         "lo": 0.6,
         "hi": 0.8,
-        "n": 0,
-        "meanScore": 0,
-        "observedRiskyRate": 0
+        "n": 2,
+        "meanScore": 0.635,
+        "observedRiskyRate": 0.5
       },
       {
         "lo": 0.8,
         "hi": 1,
-        "n": 0,
-        "meanScore": 0,
-        "observedRiskyRate": 0
+        "n": 1,
+        "meanScore": 0.82,
+        "observedRiskyRate": 1
       }
     ],
     "perCase": [
@@ -99,37 +99,37 @@
         "caseId": "c01",
         "label": "risky",
         "hard": false,
-        "predictedRisk": "Medium",
-        "predictedHigh": false,
+        "predictedRisk": "High",
+        "predictedHigh": true,
         "predictedFlagged": true,
-        "correct": false,
+        "correct": true,
         "correctTriage": true,
-        "modelRiskScore": 0.28,
-        "derivedRiskScore": 0.2875,
+        "modelRiskScore": 0.62,
+        "derivedRiskScore": 0.7469,
         "rootCauseHit": true,
         "rootCauseBorderline": false,
-        "highFindings": 0,
-        "totalFindings": 2,
-        "costUsd": 0.057264449999999995,
-        "wallMs": 41276
+        "highFindings": 1,
+        "totalFindings": 3,
+        "costUsd": 0.048938,
+        "wallMs": 47625
       },
       {
         "caseId": "c02",
         "label": "risky",
         "hard": false,
-        "predictedRisk": "Low",
-        "predictedHigh": false,
-        "predictedFlagged": false,
-        "correct": false,
-        "correctTriage": false,
-        "modelRiskScore": 0.08,
-        "derivedRiskScore": 0,
-        "rootCauseHit": false,
+        "predictedRisk": "High",
+        "predictedHigh": true,
+        "predictedFlagged": true,
+        "correct": true,
+        "correctTriage": true,
+        "modelRiskScore": 0.82,
+        "derivedRiskScore": 0.8481,
+        "rootCauseHit": true,
         "rootCauseBorderline": false,
-        "highFindings": 0,
-        "totalFindings": 0,
-        "costUsd": 0.05548395,
-        "wallMs": 42926
+        "highFindings": 2,
+        "totalFindings": 3,
+        "costUsd": 0.035785,
+        "wallMs": 45345
       },
       {
         "caseId": "c03",
@@ -146,26 +146,26 @@
         "rootCauseBorderline": false,
         "highFindings": 0,
         "totalFindings": 0,
-        "costUsd": 0.0244695,
-        "wallMs": 43262
+        "costUsd": 0.0261365,
+        "wallMs": 26625
       },
       {
         "caseId": "c04",
         "label": "risky",
         "hard": false,
-        "predictedRisk": "Low",
+        "predictedRisk": "Medium",
         "predictedHigh": false,
-        "predictedFlagged": false,
+        "predictedFlagged": true,
         "correct": false,
-        "correctTriage": false,
-        "modelRiskScore": 0.05,
-        "derivedRiskScore": 0,
-        "rootCauseHit": false,
+        "correctTriage": true,
+        "modelRiskScore": 0.28,
+        "derivedRiskScore": 0.2875,
+        "rootCauseHit": true,
         "rootCauseBorderline": false,
         "highFindings": 0,
-        "totalFindings": 0,
-        "costUsd": 0.0266448,
-        "wallMs": 23320
+        "totalFindings": 2,
+        "costUsd": 0.0243399,
+        "wallMs": 29449
       },
       {
         "caseId": "c05",
@@ -176,14 +176,14 @@
         "predictedFlagged": true,
         "correct": true,
         "correctTriage": true,
-        "modelRiskScore": 0.55,
-        "derivedRiskScore": 0.55,
+        "modelRiskScore": 0.58,
+        "derivedRiskScore": 0.8481,
         "rootCauseHit": true,
         "rootCauseBorderline": false,
-        "highFindings": 1,
-        "totalFindings": 1,
-        "costUsd": 0.03734660000000001,
-        "wallMs": 44610
+        "highFindings": 2,
+        "totalFindings": 3,
+        "costUsd": 0.06320535000000001,
+        "wallMs": 68305
       },
       {
         "caseId": "c06",
@@ -194,14 +194,14 @@
         "predictedFlagged": true,
         "correct": true,
         "correctTriage": true,
-        "modelRiskScore": 0.35,
-        "derivedRiskScore": 0.6625,
+        "modelRiskScore": 0.42,
+        "derivedRiskScore": 0.7469,
         "rootCauseHit": true,
         "rootCauseBorderline": false,
         "highFindings": 1,
-        "totalFindings": 2,
-        "costUsd": 0.0583709,
-        "wallMs": 39580
+        "totalFindings": 3,
+        "costUsd": 0.04323635,
+        "wallMs": 48798
       },
       {
         "caseId": "c07",
@@ -218,8 +218,8 @@
         "rootCauseBorderline": false,
         "highFindings": 0,
         "totalFindings": 0,
-        "costUsd": 0.033168,
-        "wallMs": 39606
+        "costUsd": 0.035451,
+        "wallMs": 50036
       },
       {
         "caseId": "c08",
@@ -236,8 +236,8 @@
         "rootCauseBorderline": false,
         "highFindings": 0,
         "totalFindings": 0,
-        "costUsd": 0.0444306,
-        "wallMs": 26443
+        "costUsd": 0.02981245,
+        "wallMs": 25352
       },
       {
         "caseId": "c09",
@@ -254,8 +254,8 @@
         "rootCauseBorderline": false,
         "highFindings": 0,
         "totalFindings": 0,
-        "costUsd": 0.0388968,
-        "wallMs": 31262
+        "costUsd": 0.0248006,
+        "wallMs": 35617
       },
       {
         "caseId": "c10",
@@ -266,32 +266,32 @@
         "predictedFlagged": true,
         "correct": true,
         "correctTriage": false,
-        "modelRiskScore": 0.35,
-        "derivedRiskScore": 0.25,
+        "modelRiskScore": 0.42,
+        "derivedRiskScore": 0.4656,
         "rootCauseHit": null,
         "rootCauseBorderline": false,
         "highFindings": 0,
-        "totalFindings": 1,
-        "costUsd": 0.0373053,
-        "wallMs": 31497
+        "totalFindings": 3,
+        "costUsd": 0.030016599999999997,
+        "wallMs": 41979
       },
       {
         "caseId": "c11",
         "label": "clean",
         "hard": true,
-        "predictedRisk": "Medium",
-        "predictedHigh": false,
+        "predictedRisk": "High",
+        "predictedHigh": true,
         "predictedFlagged": true,
-        "correct": true,
+        "correct": false,
         "correctTriage": false,
-        "modelRiskScore": 0.18,
-        "derivedRiskScore": 0.4375,
+        "modelRiskScore": 0.65,
+        "derivedRiskScore": 0.8557,
         "rootCauseHit": null,
         "rootCauseBorderline": false,
-        "highFindings": 0,
-        "totalFindings": 2,
-        "costUsd": 0.09796869999999999,
-        "wallMs": 74922
+        "highFindings": 2,
+        "totalFindings": 4,
+        "costUsd": 0.06915260000000001,
+        "wallMs": 86676
       },
       {
         "caseId": "c12",
@@ -308,8 +308,8 @@
         "rootCauseBorderline": false,
         "highFindings": 0,
         "totalFindings": 0,
-        "costUsd": 0.04328985,
-        "wallMs": 33960
+        "costUsd": 0.028653099999999997,
+        "wallMs": 44035
       }
     ],
     "manualReview": []

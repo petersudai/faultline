@@ -1,7 +1,6 @@
 # Reproduction guide
 
-Written for someone starting from a clean machine. Numbers marked _[TBD]_ are
-filled in from the final scored run.
+From a clean machine.
 
 ## Requirements
 
@@ -15,87 +14,75 @@ filled in from the final scored run.
 
 ```bash
 git clone <this repo> && cd faultline
-nvm use            # or: node --version  → must be >= 20
+nvm use                 # Node 20+
 npm ci
-cp .env.example .env
-#   edit .env → ANTHROPIC_API_KEY=sk-ant-...
-#   (GITHUB_TOKEN only needed for live single-PR runs, not the eval)
+cp .env.example .env     # add ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 ## Sanity checks (no spend)
 
 ```bash
-npm test              # 21 unit tests: classifier, scoring, renderer, JSON extraction
-npm run preflight     # all 12 cases resolve from the committed cache
+npm test                # 24 unit tests: classifier, scoring, renderer, JSON extraction
+npm run preflight       # all 12 cases resolve from the committed cache
 ```
 
-## Run the evaluation
-
-Everything at once (baseline → agent → report):
+## Reproduce the headline comparison
 
 ```bash
-npm run eval:all
+npm run eval:all        # baseline (offline) + agent (offline) + report
 ```
 
-…or step by step. Baseline — one model call per PR on the diff:
+Writes `results/baseline.json`, `results/agent.json`, `results/summary.md`,
+per-case reviews under `results/<label>/`, and agent trajectories under
+`trajectories/`.
+
+**Expected** (claude-haiku-4-5, model default; n=12; one case ≈ 8 pp of noise):
+
+| | strict bal. acc | recall on reverts | root-cause | runtime | cost |
+|---|---|---|---|---|---|
+| baseline | ~67% | ~33% | 6/6 | ~2 min | ~$0.08 |
+| agent (final) | 67–75% | 50–67% | 4–5/6 | ~9 min | ~$0.55 |
+
+The agent number varies run to run — see `CHANGELOG.md` for the two seeds we
+recorded and why we report a range.
+
+## Reproduce the full ablation
 
 ```bash
-npm run eval -- --mode baseline --offline
+bash scripts/ablation.sh            # ~20 min, ~$2 on Haiku
+bash scripts/ablation.sh claude-sonnet-5   # see the "cross-model check" caveat in CHANGELOG
 ```
 
-Expected: `results/baseline.json`, `results/summary.md`.
-Balanced accuracy ≈ _[TBD]_ · runtime ≈ _[TBD]_ · cost ≈ _[TBD]_.
+Rebuilds every row of the `CHANGELOG.md` table into `results/summary.md`.
 
-Agent — investigate + verify + deterministic classify:
+## Single PR, live (needs GITHUB_TOKEN)
 
 ```bash
-npm run eval -- --mode agent --offline
+npm run faultline -- honojs/hono 4707 --agent
 ```
 
-Expected: `results/agent.json`, updated `results/summary.md`, trajectories under
-`trajectories/eval-*/`.
-Balanced accuracy ≈ _[TBD]_ · runtime ≈ _[TBD]_ · cost ≈ _[TBD]_.
-
-Regenerate the comparison table at any time:
-
-```bash
-npm run report        # rewrites results/summary.md from the two result files
-```
-
-### Options
-
-| flag | effect |
-|---|---|
-| `--cases c01,c05` | run a subset (cheap iteration) |
-| `--model claude-sonnet-5` | override the model (default: `claude-haiku-4-5-20251001`) |
-| `--concurrency 3` | cases in flight at once |
-| (omit `--offline`) | fetch PR data live; needs `GITHUB_TOKEN`, repopulates `.cache/gh/` |
+Writes `out/honojs-hono-4707/REVIEW.md` and `review.json`, and a full
+`trajectories/<...>/TRAJECTORY.md`.
 
 ## What the eval measures
 
-- **Balanced accuracy** (primary): correct `High` vs `not-High` against the
-  risky/clean label, averaged over the two classes.
-- **Root-cause hit rate**: for risky PRs, did a finding land on the file that
-  actually broke, and describe the real issue.
-- **False-alarm rate**: `High`-severity findings per clean PR.
-- **Cost / time per PR**.
+- **strict** balanced accuracy — "High" = flag for blocking review
+- **triage** balanced accuracy — "High or Medium" = needs a closer look
+- **recall / specificity** on the strict metric
+- **root-cause hit rate** — for reverted PRs, did a finding name the file that
+  actually broke and describe the real issue
+- **Brier score + calibration table** — how well the model's 0–1 risk score
+  tracks the actual revert outcome
+- **cost / time per PR**
 
-Labels are objective: `risky` = the PR was later reverted (see
-`eval/dataset/README.md` for the revert PR of each case); `clean` = a merged PR
-with no revert/regression follow-up after 60+ days.
+Labels are objective: `risky` = the PR was later reverted (revert PR listed per
+case in `eval/dataset/README.md`); `clean` = merged, no revert/regression
+follow-up after 60+ days.
 
-## Single PR (live)
+## Environment used for the committed numbers
 
-```bash
-#   needs GITHUB_TOKEN in .env
-npm run faultline -- honojs/hono 5274 --agent
-```
-
-Writes `out/honojs-hono-5274/REVIEW.md` and `review.json`.
-
-## Environment used for the reported numbers
-
-- Node _[TBD]_ · OS _[TBD]_
-- Model: `claude-haiku-4-5-20251001` for iteration, `claude-sonnet-5` for the
-  scored run _[confirm]_
-- Total eval cost (baseline + agent, 12 cases): ≈ _[TBD]_
+- Node 22.15, Windows 11, npm 10.9
+- Models: `claude-haiku-4-5-20251001` (headline + ablation);
+  `claude-sonnet-5` attempted (see CHANGELOG "cross-model check")
+- Prompt caching on; temperature 0 on Haiku, omitted on Sonnet 5
+- Total spend to produce every number in `results/`: ~$12

@@ -1,0 +1,51 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 4198,
+    "title": "fix(etag): fallback if `res.clone()` is not supported",
+    "baseSha": "53656e126df4855969afa55603cd063343d65552",
+    "headSha": "6f22acef362356c58ce071eaae9decea6ac1d6a4",
+    "filesChanged": 3,
+    "additions": 44,
+    "deletions": 11
+  },
+  "summary": "This PR adds a fallback mechanism for environments where `res.clone()` is not supported (like AWS Lambda). When `clone()` fails, the middleware falls back to using `res.arrayBuffer()` and passes the buffer to the digest generator. The implementation updates the `generateDigest` function signature to accept both ReadableStream and ArrayBuffer inputs, and includes a test that mocks the Lambda-like environment. Key concerns: the fallback loads entire response into memory (potential issue for large bodies), error handling is broad and may mask other failures, and the Response constructor pattern used for reassignment should be verified across runtimes.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/middleware/etag/index.ts",
+      "line": 100,
+      "category": "other",
+      "rationale": "The catch block at line 100 catches all exceptions from `res.clone()` access, but the fallback path at line 101 (`res.arrayBuffer()`) can also throw independently (e.g., if body is already consumed, or if the response is a stream that cannot be buffered). If `arrayBuffer()` throws, the exception propagates uncaught. Additionally, if `generateDigest()` at line 102 throws in the fallback path, it also propagates uncaught. The broad catch silently swallows all clone-related errors without distinguishing between clone-specific failures and other issues.",
+      "suggestedCheck": "Wrap the entire fallback block (lines 101-103) in error handling. Distinguish between clone failures and arrayBuffer failures. Consider what should happen if both paths fail - should the middleware skip ETag generation, log the error, or return an error response?"
+    },
+    {
+      "severity": "medium",
+      "file": "src/middleware/etag/index.ts",
+      "line": 101,
+      "category": "other",
+      "rationale": "The fallback path calls `res.arrayBuffer()` which loads the entire response body into memory as a single buffer. For large response bodies, this could cause memory exhaustion or performance degradation. The original streaming approach via `res.clone().body` was more memory-efficient for large payloads. This is a behavioral change that trades memory efficiency for compatibility with Lambda-like environments.",
+      "suggestedCheck": "Consider implementing a size limit check before calling `arrayBuffer()`, or add logging to track when the fallback is triggered. For large bodies, consider whether streaming through the generator in chunks is feasible even in the fallback path."
+    },
+    {
+      "severity": "low",
+      "file": "src/middleware/etag/index.ts",
+      "line": 103,
+      "category": "other",
+      "rationale": "When the fallback path is taken (line 103), a new Response is created with `new Response(buffer, res)` where `res` is the original response object. While this pattern is used elsewhere in the codebase (context.ts line 415), it relies on the Response constructor accepting a Response object as the init parameter. This is non-standard but appears to work in Hono's environment. The pattern should be verified to work correctly across all target runtimes (Node.js, Deno, Bun, Cloudflare Workers, etc.).",
+      "suggestedCheck": "Verify that `new Response(buffer, res)` correctly copies all necessary properties (status, statusText, headers) from the original response object across all supported runtimes. Consider adding explicit property copying for clarity: `new Response(buffer, { status: res.status, statusText: res.statusText, headers: res.headers })`"
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.35,
+  "derivedRiskScore": 0.4656,
+  "meta": {
+    "mode": "agent",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 9456,
+    "outputTokens": 7024,
+    "costUsd": 0.07907,
+    "wallMs": 77339,
+    "toolCalls": 10
+  }
+}

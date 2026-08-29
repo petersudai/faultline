@@ -83,6 +83,7 @@ async function main(): Promise<void> {
       changedFiles,
       logger,
       verify: true,
+      secondPass: true, // final config: investigate -> verify -> adversarial pass -> classify
     });
   } else {
     const diff = await getDiff();

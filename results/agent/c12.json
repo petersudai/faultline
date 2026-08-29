@@ -15,12 +15,12 @@
   "modelRiskScore": 0.05,
   "derivedRiskScore": 0,
   "meta": {
-    "mode": "abl-4-verify",
+    "mode": "agent",
     "model": "claude-haiku-4-5-20251001",
-    "inputTokens": 7431,
-    "outputTokens": 2433,
-    "costUsd": 0.04328985,
-    "wallMs": 33960,
+    "inputTokens": 8666,
+    "outputTokens": 2719,
+    "costUsd": 0.04595485,
+    "wallMs": 38917,
     "toolCalls": 9
   }
 }

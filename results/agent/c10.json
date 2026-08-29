@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3832,
+    "title": "feat(etag): allow for custom hashing methods to be used to etag",
+    "baseSha": "6837649cd104b1886e6cb6653bf26d0700c4c3e6",
+    "headSha": "8fc6cfd20d261e44cb2adacfb0d2d9664f6c80b0",
+    "filesChanged": 3,
+    "additions": 50,
+    "deletions": 9
+  },
+  "summary": "This PR adds support for custom hashing methods to the etag middleware by introducing a `generateDigest` option that allows users to specify their own digest generation function (e.g., SHA-256 instead of the default SHA-1). The implementation is backward-compatible with a sensible default. However, there are concerns about error handling for custom generators and the removal of explicit body consumption before 304 responses.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/middleware/etag/index.ts",
+      "line": 79,
+      "category": "error-handling",
+      "rationale": "The `await generateDigest(res.clone().body, generator)` call is not wrapped in try-catch. If the custom `generator` function rejects or throws, the promise rejection will propagate uncaught, potentially crashing the middleware or leaving the response in an inconsistent state. The function returns early on null but doesn't handle promise rejections from the generator.",
+      "suggestedCheck": "Wrap the `await generateDigest(res.clone().body, generator)` call in a try-catch block to gracefully handle generator failures. Define fallback behavior (e.g., skip ETag generation, use default algorithm, or return error response)."
+    },
+    {
+      "severity": "medium",
+      "file": "src/middleware/etag/index.ts",
+      "line": 87,
+      "category": "unhandled-edge-case",
+      "rationale": "The removal of `await c.res.blob()` (previously at line 74 in base version) before creating the 304 response changes the resource cleanup behavior. While the cloned body used for digest generation is consumed, the original response body stream may not be explicitly consumed before being discarded. This could potentially leave resources unconsumed in certain edge cases, though the existing tests pass.",
+      "suggestedCheck": "Verify that removing `await c.res.blob()` doesn't cause resource leaks or improper stream cleanup in production scenarios, especially with large response bodies or streaming responses. Consider adding a test that explicitly verifies the original response body is properly handled when a 304 response is generated."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.35,
+  "derivedRiskScore": 0.4375,
+  "meta": {
+    "mode": "agent",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 7358,
+    "outputTokens": 3508,
+    "costUsd": 0.0478691,
+    "wallMs": 39913,
+    "toolCalls": 9
+  }
+}

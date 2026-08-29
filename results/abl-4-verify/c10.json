@@ -9,15 +9,15 @@
     "additions": 50,
     "deletions": 9
   },
-  "summary": "This PR adds support for custom hashing methods to the etag middleware by accepting a `generateDigest` option. The removal of `await c.res.blob()` before creating 304 responses is a potential concern for resource cleanup with streaming responses.",
+  "summary": "This PR adds support for custom hashing methods in the etag middleware by introducing an optional `generateDigest` parameter to `ETagOptions`. The implementation maintains backward compatibility with a sensible SHA-1 default. However, the PR removes a line that explicitly consumed the response body (`await c.res.blob()`) before creating a 304 Not Modified response, which could potentially cause stream handling issues.",
   "findings": [
     {
       "severity": "medium",
       "file": "src/middleware/etag/index.ts",
       "line": 87,
-      "category": "error-handling",
-      "rationale": "The line `await c.res.blob()` was removed from the 304 response path (previously at line 74 in base). This line was explicitly consuming the response body to ensure proper cleanup. Removing it could cause resource leaks or unexpected behavior with streaming responses, as the original body stream may not be properly consumed before being replaced with a null response.",
-      "suggestedCheck": "Verify that removing `await c.res.blob()` does not cause resource leaks with streaming responses. Consider adding a test that uses a streaming response with a matching ETag to ensure the original stream is properly cleaned up. Alternatively, restore the line or add explicit stream cleanup logic."
+      "category": "unhandled-edge-case",
+      "rationale": "The line `await c.res.blob() // Force using body` was removed before creating the 304 response. This line was explicitly consuming the response body stream to ensure proper cleanup. Removing it could leave the stream unconsumed in certain scenarios, potentially causing resource leaks or stream handling issues, especially with large responses or in environments with strict stream cleanup requirements.",
+      "suggestedCheck": "Verify that removing `await c.res.blob()` doesn't cause stream cleanup issues by testing with large response bodies and in different runtime environments (Node.js, Deno, Cloudflare Workers, etc.). Consider adding a test that specifically validates the 304 response path with a custom digest function and verifies the response body is properly handled."
     }
   ],
   "risk": "Medium",
@@ -26,10 +26,10 @@
   "meta": {
     "mode": "abl-4-verify",
     "model": "claude-haiku-4-5-20251001",
-    "inputTokens": 8322,
-    "outputTokens": 2073,
-    "costUsd": 0.0237165,
-    "wallMs": 27903,
-    "toolCalls": 9
+    "inputTokens": 4797,
+    "outputTokens": 2455,
+    "costUsd": 0.0373053,
+    "wallMs": 31497,
+    "toolCalls": 8
   }
 }

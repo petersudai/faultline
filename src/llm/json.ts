@@ -4,13 +4,10 @@ import { z } from "zod";
  * Pull a JSON object out of a model response that may wrap it in ```json fences
  * or surround it with prose. Returns the first balanced {...} span that parses.
  */
-export function extractJson(text: string): unknown {
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const candidates: string[] = [];
-  if (fenced?.[1]) candidates.push(fenced[1].trim());
-
-  const start = text.indexOf("{");
-  if (start !== -1) {
+/** every balanced {...} span at any position, ignoring braces inside strings */
+function balancedObjects(text: string): string[] {
+  const spans: string[] = [];
+  for (let start = text.indexOf("{"); start !== -1; start = text.indexOf("{", start + 1)) {
     let depth = 0;
     let inStr = false;
     let esc = false;
@@ -22,15 +19,24 @@ export function extractJson(text: string): unknown {
         else if (ch === '"') inStr = false;
       } else if (ch === '"') inStr = true;
       else if (ch === "{") depth++;
-      else if (ch === "}") {
-        depth--;
-        if (depth === 0) {
-          candidates.push(text.slice(start, i + 1));
-          break;
-        }
+      else if (ch === "}" && --depth === 0) {
+        spans.push(text.slice(start, i + 1));
+        break;
       }
     }
   }
+  return spans;
+}
+
+export function extractJson(text: string): unknown {
+  const candidates: string[] = [];
+  for (const m of text.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)) {
+    if (m[1]) candidates.push(m[1].trim());
+  }
+  // longest balanced object first — the real payload is usually the biggest
+  candidates.push(
+    ...balancedObjects(text).sort((a, b) => b.length - a.length),
+  );
 
   for (const c of candidates) {
     try {

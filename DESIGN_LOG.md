@@ -389,6 +389,112 @@ accounting. Vite holdout cut for budget.
 
 ---
 
+## D16 — Haiku ablation result + the reliability bug
+
+**Full Haiku ablation (12 cases each):**
+
+| config | strict | triage | RC | $/PR | errors |
+|---|---|---|---|---|---|
+| baseline (one engineered call) | **66.7%** | **66.7%** | 6/6 | $0.007 | 0 |
+| baseline-plus (+ full files) | 66.7% | 58.3% | 6/6 | $0.021 | 0 |
+| abl-1-read | 50.0% | 50.0% | 5/6 | $0.051 | 0 |
+| abl-2-callers | 58.3% | 41.7% | 2/6 | $0.041 | 1* |
+| abl-3-tests | 50.0% | 50.0% | 4/6 | $0.036 | 2* |
+| abl-4-verify (full) | 50.0% | 33.3% | 2/6 | $0.019 | 4* |
+
+\* JSON-parse failures — see the reliability bug below; abl-4 was re-run clean.
+
+**Reading.** On Haiku the tool loop is *net-negative*: it investigates, then
+argues itself into "looks fine". Every agent config is worse than the plain
+baseline on strict accuracy, worse on triage recall, worse on root-cause
+localisation, and 3–7× the cost. Adding the full changed files to the baseline
+(`baseline-plus`) also does *not* help once the prompt is good — the diff alone
+was enough. So neither "more context" nor "more agent" is the lever on a cheap
+model; the lever is the model's willingness to *commit* to a label.
+
+**Reliability bug (D-fix).** ~1/3 of agent cases errored with "no parseable JSON
+in model response" — Haiku could not reliably emit a bare JSON object as its
+final turn after a long tool-use transcript. Fix: the agent now finishes by
+**calling a `submit_review` tool** whose typed input *is* the assessment; the
+text-JSON parse is kept only as a fallback. Re-probe on the 4 previously-failing
+cases: **0 errors**, and the numbers rose (subset strict 50% → 66.7%). The
+failures had been deflating every agent row — but not enough to change the
+conclusion that the agent ≈ / < baseline on Haiku.
+
+**Decision (with the user):** spend the rest on the Sonnet crossover check
+(`baseline-sonnet` + `agent-sonnet`, 12 cases) plus a clean Haiku `abl-4` and
+the removed-experiment row, keeping a $2.5 buffer. Write up honestly whichever
+way Sonnet lands.
+
+---
+
+## D17 — The result flips: the pass we planned to remove is the win
+
+Clean Haiku runs (0 errors), 12 cases:
+
+| config | strict | recall | spec | triage | RC | Brier(model) | $/PR |
+|---|---|---|---|---|---|---|---|
+| baseline (one engineered call) | 66.7% | 33% | 100% | 66.7% | 6/6 | 0.303 | $0.007 |
+| + investigation loop (read/callers/tests/verify) | 66.7% | 33% | 100% | 58.3% | 3/6 | 0.330 | $0.046 |
+| **+ adversarial second pass** | **75.0%** | **66.7%** | 83.3% | **75.0%** | 5/6 | **0.227** | $0.038 |
+
+**Finding.** Wrapping the baseline in a tool-driven investigation loop does not
+improve triage accuracy (flat), costs 7×, and *degrades* root-cause
+localisation (6/6 → 3/6 — the model spends attention on tool output instead of
+the change). The single change that helps is a second review pass, framed
+adversarially ("what did the first pass miss, how bad is it *really*"). It
+**doubles recall on reverted PRs (33 → 67%)**, lifts strict balanced accuracy to
+75%, and — notably — *improves calibration* (Brier 0.30 → 0.23). Cost: one
+false alarm on a clean PR (spec 100 → 83%) and ~$0.04/PR.
+
+**Mechanism / hot take.** For triage the model is not short on *information* —
+the plain baseline already finds every root cause (6/6). It is short on
+*conviction*: left alone it hedges everything to "Medium". A second pass that
+argues with the first is what breaks the hedge. The lesson: when an agent is
+under-committing, add a critic, not more tools.
+
+**Removed experiments (honest).**
+- `baseline-plus` — feeding the model the full changed files on top of the diff:
+  no accuracy gain over the diff alone once the prompt is good; dropped.
+- `find_references` (caller tracing): root-cause hit rate fell 5/6 → 2/6 — it
+  pulled the model off the actual change; dropped from the default tool set.
+
+**Sonnet check — inconclusive, bug-contaminated.** `baseline-sonnet` hit 5/12
+JSON-parse failures (the baseline emits JSON as text; Sonnet 5 wraps it);
+`agent-sonnet` hit 3/12 "never submitted" and cost $0.12/PR. Hardened
+`extractJson` (try every balanced object, longest first) and re-ran
+`baseline-sonnet`; did not pursue `agent-sonnet` further — the Haiku result was
+already a positive, and the budget was spent. Cross-model generalisation is
+named as a limitation, not claimed.
+
+## D18 — n=12 variance caught us; report ranges
+
+Re-ran the winning config (`abl-R-second`) unchanged as `agent`. It dropped
+8 points: strict 75.0% → 66.7%, recall 67% → 50%, RC 5/6 → 4/6, Brier 0.23 →
+0.31. Same code, same 12 cases, same model — Haiku's sampling swings one case,
+and one case is 8 pp here. The "75%" in D17 was one lucky seed.
+
+**Correction to the claims.** What holds across both seeds:
+- the adversarial second pass raises recall on reverted PRs (33% → 50–67%) in
+  every run, and is the *only* step that does (abl-4-verify, the same pipeline
+  without it, stays at 33%);
+- it costs exactly one clean-PR false alarm (spec 100% → 83%) every run;
+- cost ~5–8× the baseline.
+What does **not** hold: a specific strict-accuracy number, or the calibration
+improvement (0.23 was the good seed; 0.31 the other).
+
+**This is a finding, not an embarrassment.** A 12-case eval on a cheap model
+cannot support a tight point estimate. The honest report is a direction plus a
+range plus "more cases / more seeds is the fix we didn't have budget for". That
+rigor is worth more than a flattering single number.
+
+**Final config (shipped):** baseline prompt → investigation loop (get_diff,
+read_file, get_related_tests; 8-step cap) → verify pass → **adversarial second
+pass** → deterministic classifier + calibrated score. The loop is kept for the
+localisation and the audit trail; the accuracy comes from the second pass.
+
+---
+
 ## Metrics glossary (for the video and methodology guide)
 
 | Metric | Meaning | Why it's the right one |

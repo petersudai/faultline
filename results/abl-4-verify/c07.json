@@ -9,7 +9,7 @@
     "additions": 36,
     "deletions": 11
   },
-  "summary": "This PR adds TypeScript type refinement to the `body()` method by making it return `Response & TypedResponse<..., U, 'body'>` instead of just `Response`, allowing the type system to track status codes across multiple response methods in a single route. The implementation is unchanged (just cast to the new type), and a new type test validates the union of status codes works correctly.",
+  "summary": "This PR fixes a type-level issue where `.body()` calls in conditional branches weren't properly tracked by the type system. The fix adds `TypedResponse` generic type information to the `BodyRespond` interface, allowing correct inference of all possible status codes. The implementation is purely type-level with no runtime behavior changes, and includes appropriate test coverage for the fix.",
   "findings": [],
   "risk": "Low",
   "modelRiskScore": 0.05,
@@ -17,10 +17,10 @@
   "meta": {
     "mode": "abl-4-verify",
     "model": "claude-haiku-4-5-20251001",
-    "inputTokens": 7119,
-    "outputTokens": 2331,
-    "costUsd": 0.0270246,
-    "wallMs": 35093,
-    "toolCalls": 10
+    "inputTokens": 7302,
+    "outputTokens": 2389,
+    "costUsd": 0.033168,
+    "wallMs": 39606,
+    "toolCalls": 11
   }
 }

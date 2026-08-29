@@ -59,7 +59,8 @@ function parseArgs(): Args {
       ? (toolsArg.split(",").map((s) => s.trim()) as ToolName[])
       : ALL_TOOLS,
     verify: !has("--no-verify"),
-    secondPass: has("--second-pass"),
+    // the second (adversarial) pass is the final config — on by default
+    secondPass: !has("--no-second-pass"),
     maxSteps: Number(val("--max-steps") ?? String(LIMITS.agentMaxSteps)),
   };
 }

@@ -9,27 +9,35 @@
     "additions": 138,
     "deletions": 29
   },
-  "summary": "This PR adds support for greedy route parameters with subsequent static components (e.g., `/:dirs{.+}/file.html`). The implementation uses lookahead assertions in regex patterns and a queue-based search mechanism. The changes are well-tested, but there is a potential cache key collision issue in getPattern() when the `next` parameter varies.",
+  "summary": "This PR adds support for greedy regex patterns with subsequent static components in routes (e.g., `/:dirs{.+}/file.html`). The main changes are: (1) `getPattern()` now accepts a `next` parameter to add lookahead assertions to regex patterns when followed by static components, (2) trie-router's search method now uses `exec()` instead of `test()` to capture matched text and queues nodes for deferred processing, and (3) linear-router adds similar lookahead logic. The implementation includes comprehensive tests. A subtle cache key inconsistency in pattern storage and a potential edge case in component counting warrant verification.",
   "findings": [
     {
       "severity": "medium",
       "file": "src/utils/url.ts",
-      "line": 62,
+      "line": 67,
+      "category": "api-contract",
+      "rationale": "The pattern array's first element is inconsistent: when a lookahead is added, it returns `cacheKey` (e.g., ':id{[0-9]+}#next'), but without lookahead it returns `label` (e.g., ':id{[0-9]+}'). This inconsistency is used as a trie node key in node.ts line 50. While this works for the tested scenarios, it could cause issues if the same greedy pattern appears in multiple route contexts with different subsequent components, potentially creating duplicate or conflicting trie branches.",
+      "suggestedCheck": "Verify that routes with the same greedy pattern but different subsequent static components (e.g., '/:id{.+}/a' and '/:id{.+}/b') route correctly and don't create conflicting trie entries. Add a test case for this scenario."
+    },
+    {
+      "severity": "medium",
+      "file": "src/router/trie-router/node.ts",
+      "line": 180,
       "category": "unhandled-edge-case",
-      "rationale": "The cache key uses `${label}#${next}` which becomes `label#undefined` when next is undefined. This could cause cache collisions if the same pattern is used in different contexts (with and without a next component). The cache should distinguish between these cases more robustly.",
-      "suggestedCheck": "Verify that patterns registered in different route contexts (with/without subsequent static components) don't incorrectly share cached regex patterns. Test a scenario like registering both `/:id{[0-9]+}` and `/:id{[0-9]+}/details` in the same router."
+      "rationale": "The component count calculation uses `m[0].match(/\\//)?.length ?? 0` to count slashes in the matched text. This assumes the matched text contains only forward slashes as path separators. If a parameter value contains encoded slashes or other edge cases, this count could be incorrect, leading to nodes being queued at the wrong depth in curNodesQueue.",
+      "suggestedCheck": "Test with parameter values that might contain special characters or encoded slashes (e.g., URL-encoded paths). Verify the queue offset calculation is robust."
     }
   ],
   "risk": "Medium",
-  "modelRiskScore": 0.25,
-  "derivedRiskScore": 0.25,
+  "modelRiskScore": 0.18,
+  "derivedRiskScore": 0.4375,
   "meta": {
     "mode": "abl-4-verify",
     "model": "claude-haiku-4-5-20251001",
-    "inputTokens": 2127,
-    "outputTokens": 2478,
-    "costUsd": 0.029981849999999997,
-    "wallMs": 33243,
-    "toolCalls": 11
+    "inputTokens": 2344,
+    "outputTokens": 6429,
+    "costUsd": 0.09796869999999999,
+    "wallMs": 74922,
+    "toolCalls": 10
   }
 }

@@ -1,0 +1,59 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3888,
+    "title": "feat(router): support greedy matches with subsequent static components.",
+    "baseSha": "438983b3bb3d459bf9d9d2e5adf1d21a7e6588d8",
+    "headSha": "5f41ceeb32fe23e34a4a5f3f25e4b4b155bcf457",
+    "filesChanged": 6,
+    "additions": 138,
+    "deletions": 29
+  },
+  "summary": "This PR adds support for greedy regex patterns with subsequent static components in routes (e.g., `/:dirs{.+}/file.html`). The main changes are: (1) `getPattern()` now accepts a `next` parameter to add lookahead assertions to regex patterns when followed by static components, (2) trie-router's search method now uses `exec()` instead of `test()` to capture matched text and queues nodes for deferred processing, and (3) linear-router adds similar lookahead logic. The implementation includes comprehensive tests. However, there are critical regex injection vulnerabilities where unescaped route components are interpolated into regex patterns, and a cache key inconsistency that could cause routing conflicts.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "src/utils/url.ts",
+      "line": 65,
+      "category": "security",
+      "rationale": "The `next` parameter is directly interpolated into a regex pattern without escaping: `new RegExp(`^${match[2]}(?=/${next})`)`. If `next` contains regex metacharacters (e.g., '.', '*', '+', '(', ')'), it will be interpreted as regex syntax rather than a literal string, causing unintended pattern matching. Route components like `/:id{.+}/file.test.js` would have `.test.js` interpreted as regex, matching any character before `js`.",
+      "suggestedCheck": "Escape the `next` parameter using a regex escaping function before interpolating it into the regex pattern."
+    },
+    {
+      "severity": "high",
+      "file": "src/router/linear-router/router.ts",
+      "line": 90,
+      "category": "security",
+      "rationale": "The `next` variable is interpolated into a lookahead regex without escaping: `const lookahead = next && next[1] !== ':' && next[1] !== '*' ? `(?=${next})` : ''`. The `next` value (which is `parts[j + 1]`) could contain regex metacharacters, leading to unintended pattern matching.",
+      "suggestedCheck": "Escape `next` before using it in the regex lookahead."
+    },
+    {
+      "severity": "medium",
+      "file": "src/utils/url.ts",
+      "line": 67,
+      "category": "api-contract",
+      "rationale": "The pattern array's first element is inconsistent: when a lookahead is added, it returns `cacheKey` (e.g., ':id{[0-9]+}#next'), but without lookahead it returns `label` (e.g., ':id{[0-9]+}'). This inconsistency is used as a trie node key in node.ts line 50. While this works for the tested scenarios, it could cause issues if the same greedy pattern appears in multiple route contexts with different subsequent components, potentially creating duplicate or conflicting trie branches.",
+      "suggestedCheck": "Verify that routes with the same greedy pattern but different subsequent static components (e.g., '/:id{.+}/a' and '/:id{.+}/b') route correctly and don't create conflicting trie entries."
+    },
+    {
+      "severity": "low",
+      "file": "src/router/reg-exp-router/router.test.ts",
+      "line": 14,
+      "category": "test-gap",
+      "rationale": "Two test cases are marked as skipped/excluded for RegExpRouter ('Capture complex multiple directories' tests). This suggests the RegExpRouter may not support the new greedy pattern feature, but there's no comment explaining why or whether this is intentional. This could indicate incomplete feature coverage.",
+      "suggestedCheck": "Clarify whether RegExpRouter is intentionally excluded from supporting greedy patterns with subsequent static components, and add a comment explaining the reason if so."
+    }
+  ],
+  "risk": "High",
+  "modelRiskScore": 0.65,
+  "derivedRiskScore": 0.8557,
+  "meta": {
+    "mode": "agent",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 2347,
+    "outputTokens": 7273,
+    "costUsd": 0.10849294999999999,
+    "wallMs": 86339,
+    "toolCalls": 10
+  }
+}

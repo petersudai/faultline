@@ -9,7 +9,7 @@
     "additions": 43,
     "deletions": 21
   },
-  "summary": "This PR corrects the generic type defaults for the Factory class and createFactory function (from `any` to `Env` and `string`), and adds an explicit return type annotation to the `createMiddleware` method. These are type-level changes that fix type inference for `factory.createMiddleware()` without explicit type parameters. The changes are well-tested and low-risk.",
+  "summary": "This PR improves type safety in the Factory class by: (1) adding explicit return type annotation to `createMiddleware()` method, (2) changing default type parameters from `any` to more specific defaults (`Env` and `string`), and (3) adding a new test case verifying correct type inference for `createMiddleware()`. All changes are type-level with no runtime behavior modifications.",
   "findings": [],
   "risk": "Low",
   "modelRiskScore": 0.05,
@@ -17,10 +17,10 @@
   "meta": {
     "mode": "abl-4-verify",
     "model": "claude-haiku-4-5-20251001",
-    "inputTokens": 7159,
-    "outputTokens": 1800,
-    "costUsd": 0.0305224,
-    "wallMs": 25221,
-    "toolCalls": 9
+    "inputTokens": 7567,
+    "outputTokens": 2084,
+    "costUsd": 0.0444306,
+    "wallMs": 26443,
+    "toolCalls": 8
   }
 }

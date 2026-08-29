@@ -1,0 +1,26 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3171,
+    "title": "fix(helper/adapter): don't check `navigator` is `undefined`",
+    "baseSha": "0535579de5af90319165304be409ea9b7d5d47f3",
+    "headSha": "5c20ec4d764920eab85ae93d8c7113ebc2c6646f",
+    "filesChanged": 1,
+    "additions": 6,
+    "deletions": 2
+  },
+  "summary": "This PR changes the runtime detection logic in `getRuntimeKey()` to use a try-catch block instead of explicitly checking if `navigator` is undefined. This is a targeted fix for Cloudflare Pages environments where `navigator` may be undefined in production. The change replaces a short-circuit check with exception handling, which is a valid approach for this use case.",
+  "findings": [],
+  "risk": "Low",
+  "modelRiskScore": 0.05,
+  "derivedRiskScore": 0,
+  "meta": {
+    "mode": "agent",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 9418,
+    "outputTokens": 1863,
+    "costUsd": 0.0278558,
+    "wallMs": 25045,
+    "toolCalls": 6
+  }
+}
