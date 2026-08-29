@@ -1,0 +1,51 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3885,
+    "title": "fix(helper/adapter): correct `env` type",
+    "baseSha": "65edaf277a2dd3bb47406379904996ffdd3563e5",
+    "headSha": "a0b57dbe45d8aa72c890542ce1f3f73b755c98b4",
+    "filesChanged": 2,
+    "additions": 36,
+    "deletions": 12
+  },
+  "summary": "This PR fixes the `env` helper's type signature to correctly handle cases where either the `env` function or the `Hono` app (or both) receive generic type parameters. The change modifies the default type parameter for `C` and adjusts the `c` parameter type to use a conditional type. Tests are expanded to cover three scenarios.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/helper/adapter/index.ts",
+      "line": 16,
+      "category": "api-contract",
+      "rationale": "The parameter type changed from `c: C` to `c: T extends Record<string, unknown> ? Context : C`. This conditional type means when `T` is provided as a generic, the function accepts any `Context`, not necessarily one with `Bindings: T`. This is a subtle breaking change in the type contract—callers relying on strict type checking of the context's bindings may now pass incompatible contexts without type errors.",
+      "suggestedCheck": "Verify that the conditional type `T extends Record<string, unknown> ? Context : C` is intentional and doesn't allow type-unsafe context passing. Consider whether this should instead be `Context<{ Bindings: T }>` to maintain stricter typing."
+    },
+    {
+      "severity": "medium",
+      "file": "src/helper/adapter/index.ts",
+      "line": 18,
+      "category": "unhandled-edge-case",
+      "rationale": "The return type is `T & C['env']`. When the parameter type is `Context` (the conditional branch), `C` is still bound to the default `Context<{ Bindings: T }>`, so `C['env']` should resolve correctly. However, if a caller passes a `Context` with a different `Bindings` type than `T`, the return type may not accurately reflect what's actually returned at runtime, creating a type-safety gap.",
+      "suggestedCheck": "Manually trace through a scenario where `env<{ A: string }>(contextWithBindingsB)` is called to confirm the return type and runtime behavior align, and that no type-unsafe access is possible."
+    },
+    {
+      "severity": "low",
+      "file": "src/helper/adapter/index.test.ts",
+      "line": 20,
+      "category": "test-gap",
+      "rationale": "The tests use `expectTypeOf` to verify types, which is good, but they are not runtime tests. The tests confirm that TypeScript accepts the code without errors, but do not verify that the actual return value at runtime contains the expected properties or that the function behaves correctly across different runtimes.",
+      "suggestedCheck": "Consider adding runtime assertions (e.g., checking that `MY_VAR` is actually present in the returned object) in addition to type checks, especially for the workerd runtime path which accesses `c.env`."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.15,
+  "derivedRiskScore": 0.4656,
+  "meta": {
+    "mode": "baseline-plus",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 3059,
+    "outputTokens": 718,
+    "costUsd": 0.006649,
+    "wallMs": 9957,
+    "toolCalls": 0
+  }
+}

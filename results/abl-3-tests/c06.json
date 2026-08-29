@@ -1,0 +1,51 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 871,
+    "title": "feat: use added app's errorHandler",
+    "baseSha": "c335a9272b6fabab5bb4407f1d1a0ae42a0ff5b5",
+    "headSha": "141cb9d18864912b2fffbfd2f278a1d24b6a4c7d",
+    "filesChanged": 6,
+    "additions": 141,
+    "deletions": 30
+  },
+  "summary": "This PR changes the compose function signature (swapping parameter order from `onNotFound, onError` to `onError, onNotFound`) and implements error handler inheritance for sub-apps via route composition. All internal call sites are updated, but the signature change is a breaking change for external callers of compose.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/compose.ts",
+      "line": 10,
+      "category": "breaking-change",
+      "rationale": "The compose function signature changed from `compose(middleware, onNotFound?, onError?)` to `compose(middleware, onError?, onNotFound?)`. This is a breaking change for any external code calling compose directly. While all internal call sites in hono.ts and tests are updated, external consumers of this exported function would break.",
+      "suggestedCheck": "Verify that compose is not part of the public API contract, or document this as a breaking change. Check if there are any external packages or examples that call compose directly."
+    },
+    {
+      "severity": "medium",
+      "file": "src/hono.ts",
+      "line": 125,
+      "category": "other",
+      "rationale": "The identity check `app.errorHandler === errorHandler` relies on object reference equality with the module-level errorHandler function. This is fragile: if a sub-app's errorHandler is manually set to a different function object that has identical behavior, the wrapping logic will incorrectly wrap it. Additionally, this check is not symmetric—there's no equivalent check for notFoundHandler, which is inconsistent.",
+      "suggestedCheck": "Consider using a flag or property to track whether a handler is the default, rather than relying on reference equality. Verify the test at line 974-978 actually exercises the sub-app's errorHandler being called (not the app's)."
+    },
+    {
+      "severity": "low",
+      "file": "src/hono.test.ts",
+      "line": 1028,
+      "category": "test-gap",
+      "rationale": "The test at line 1028-1032 expects `/sub/implicit-404` to be handled by the app's notFound handler, not the sub's. This is correct behavior (routes are merged, so sub-app's notFound is never invoked), but there is no test verifying that a sub-app's notFound handler IS called when it should be (e.g., when a route matches the sub-app prefix but not any sub-app route). The notFound test suite only tests the app-level handler.",
+      "suggestedCheck": "Add a test case where a sub-app has a custom notFound handler and verify it is NOT called (since routes are merged), to document this design decision explicitly."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.25,
+  "derivedRiskScore": 0.4656,
+  "meta": {
+    "mode": "abl-3-tests",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 2018,
+    "outputTokens": 5155,
+    "costUsd": 0.06357565,
+    "wallMs": 52470,
+    "toolCalls": 9
+  }
+}

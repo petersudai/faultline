@@ -1,0 +1,26 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3885,
+    "title": "fix(helper/adapter): correct `env` type",
+    "baseSha": "65edaf277a2dd3bb47406379904996ffdd3563e5",
+    "headSha": "a0b57dbe45d8aa72c890542ce1f3f73b755c98b4",
+    "filesChanged": 2,
+    "additions": 36,
+    "deletions": 12
+  },
+  "summary": "This PR fixes the `env` helper function's type signature to correctly handle three usage patterns: (1) explicit generic with untyped context, (2) untyped context with Hono's generic, and (3) both explicit generic and Hono's generic. The change uses a conditional type on the parameter to accept either a plain Context or the typed Context C. The runtime behavior is unchanged.",
+  "findings": [],
+  "risk": "Low",
+  "modelRiskScore": 0.05,
+  "derivedRiskScore": 0,
+  "meta": {
+    "mode": "abl-2-callers",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 4843,
+    "outputTokens": 2062,
+    "costUsd": 0.036550599999999996,
+    "wallMs": 23746,
+    "toolCalls": 8
+  }
+}

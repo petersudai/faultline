@@ -1,0 +1,35 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 4198,
+    "title": "fix(etag): fallback if `res.clone()` is not supported",
+    "baseSha": "53656e126df4855969afa55603cd063343d65552",
+    "headSha": "6f22acef362356c58ce071eaae9decea6ac1d6a4",
+    "filesChanged": 3,
+    "additions": 44,
+    "deletions": 11
+  },
+  "summary": "This PR adds fallback handling for environments where `res.clone()` is not supported by catching the error and using `res.arrayBuffer()` instead. The signature of `generateDigest()` is updated to accept both ReadableStream and ArrayBuffer. The main risk is that the fallback creates a new Response using `new Response(buffer, res)` where `res` is a Response object, which may not be compatible with all JavaScript environments.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/middleware/etag/index.ts",
+      "line": 103,
+      "category": "api-contract",
+      "rationale": "The fallback code uses `new Response(buffer, res)` where `res` is a Response object. The Response constructor's second parameter should be a ResponseInit object with properties like status, statusText, and headers. While this may work in some environments, it's not guaranteed by the Web API spec and could fail in AWS Lambda or other strict implementations.",
+      "suggestedCheck": "Verify that the fallback path works correctly in AWS Lambda by testing with actual Lambda environment. Consider using `new Response(buffer, { status: res.status, statusText: res.statusText, headers: res.headers })` for better compatibility."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.3,
+  "derivedRiskScore": 0.25,
+  "meta": {
+    "mode": "abl-1-read",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 5101,
+    "outputTokens": 3424,
+    "costUsd": 0.03986775,
+    "wallMs": 37741,
+    "toolCalls": 6
+  }
+}

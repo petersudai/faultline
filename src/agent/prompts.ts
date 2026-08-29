@@ -43,24 +43,15 @@ of reverts and hotfixes, in rough priority:
   medium — a real concern to confirm by hand; may well turn out fine.
   low    — worth noting, not blocking.
 
-## Output
-When the investigation is done, output ONLY this JSON object — no prose around it:
-{
-  "summary": "2–3 sentences: what this PR changes and the single biggest risk, or that it looks low-risk",
-  "riskScore": <number 0..1 — your probability that this PR will need a revert or hotfix within two weeks of merging>,
-  "findings": [
-    {
-      "severity": "high" | "medium" | "low",
-      "file": "path exactly as it appears in the diff or repo",
-      "line": <integer line in the NEW (head) file, or null if you are not sure>,
-      "category": "missing-caller-update" | "unhandled-edge-case" | "breaking-change" | "test-gap" | "error-handling" | "concurrency" | "security" | "performance" | "data-loss" | "api-contract" | "other",
-      "rationale": "the concern, grounded in something you actually read (name the caller, the branch, the missing test)",
-      "suggestedCheck": "a concrete action for the human reviewer"
-    }
-  ]
-}
-Report only what you can defend from evidence you gathered. Guessing a line
-number is worse than null.`;
+## Finishing
+When the investigation is done, call **submit_review** once, on its own:
+  - summary — 2–3 sentences: what changed and the single biggest risk, or that
+    it looks low-risk;
+  - riskScore — 0..1, your probability the PR needs a revert or hotfix;
+  - findings — only what you can defend from evidence you gathered. Each names
+    the file, ideally the line (omit the line rather than guess), a category,
+    the concern grounded in something you actually read, and a concrete check
+    for the reviewer. An empty findings list is correct for a genuinely safe PR.`;
 
 export const VERIFIER_SYSTEM = `You are the last check before these pre-merge triage findings reach a human.
 You get the PR diff and a list of draft findings. A false alarm that reaches the

@@ -1,0 +1,51 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3498,
+    "title": "fix(factory): relax Bindings and Variables for `createMiddleware`",
+    "baseSha": "31b4cd414c258db841cce77473615c13fc611d8b",
+    "headSha": "f2e0059be4ac67f910edd2e55c44523486acca21",
+    "filesChanged": 2,
+    "additions": 44,
+    "deletions": 3
+  },
+  "summary": "This PR relaxes TypeScript type constraints for `createMiddleware` by automatically filling undefined `Bindings` or `Variables` with `any`, allowing nested middleware with partial type specifications to compose without type errors. The change is type-only and adds a test case demonstrating the new behavior.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/helper/factory/index.ts",
+      "line": 245,
+      "category": "api-contract",
+      "rationale": "The `AddAnyToEnv` type transformation silently converts undefined `Bindings` or `Variables` to `any`, which weakens type safety. A middleware author specifying only `{ Variables: Variables }` will now have `Bindings: any` injected, potentially masking type mismatches at call sites. This is a behavioral change to the type contract that could hide bugs in strict codebases.",
+      "suggestedCheck": "Verify that existing code relying on strict type checking of `Bindings` or `Variables` in `createMiddleware` still catches errors as expected. Consider whether the relaxation should be documented as a breaking change in type safety."
+    },
+    {
+      "severity": "medium",
+      "file": "src/helper/factory/index.ts",
+      "line": 250,
+      "category": "other",
+      "rationale": "The new `E2` type parameter is computed from `E` but the function signature uses `E2` for the middleware handler while still accepting `E` as the generic parameter. This creates a subtle indirection: callers pass `E`, but the actual handler operates on `E2`. If a caller explicitly specifies both `E` and `E2`, or if TypeScript's inference picks the wrong one, the type transformation may not apply as intended.",
+      "suggestedCheck": "Test that type inference works correctly when `createMiddleware` is called with explicit type arguments vs. inferred types. Verify the behavior in edge cases like `createMiddleware<{ Bindings: B }>` vs. `createMiddleware<{ Variables: V }>` vs. `createMiddleware<{}>` vs. `createMiddleware` with no args."
+    },
+    {
+      "severity": "low",
+      "file": "src/helper/factory/index.test.ts",
+      "line": 41,
+      "category": "test-gap",
+      "rationale": "The test is a compile-time type check (no runtime assertions). It verifies that the code type-checks, but does not verify runtime behavior or that the middleware actually executes correctly with the relaxed types. If the type transformation breaks at runtime (e.g., due to incorrect `Simplify` application), the test would not catch it.",
+      "suggestedCheck": "Add a runtime test that actually invokes the middleware chain and verifies that `c.env` and `c.var` are accessible and functional, not just that the code compiles."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.15,
+  "derivedRiskScore": 0.4656,
+  "meta": {
+    "mode": "baseline-plus",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 3,
+    "outputTokens": 719,
+    "costUsd": 0.0142155,
+    "wallMs": 9725,
+    "toolCalls": 0
+  }
+}

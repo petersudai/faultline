@@ -1,0 +1,35 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3833,
+    "title": "fix(compress): don't compress server-sent events",
+    "baseSha": "2a68c594d24c282d0c9f9c286f114acf5019f383",
+    "headSha": "aee7f69dcfc60f379a7830241aa6e82c9db5718f",
+    "filesChanged": 2,
+    "additions": 14,
+    "deletions": 2
+  },
+  "summary": "This PR fixes a bug where the compress middleware was buffering server-sent events (SSE) instead of streaming them. The fix modifies the COMPRESSIBLE_CONTENT_TYPE_REGEX to exclude 'text/event-stream' content type from compression by adding a negative lookahead. A test is added to verify SSE responses are not compressed. The change is minimal and surgical.",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/middleware/compress/index.test.ts",
+      "line": 168,
+      "category": "test-gap",
+      "rationale": "The test expects an exact byte length of 13000 for 1000 SSE messages with 'chunk' data. This is a brittle assertion that depends on the exact format of SSE output (each message is 'data: chunk\\n\\n' = 13 bytes × 1000 = 13000). If the SSE format changes slightly, this test will fail even if the fix still works correctly.",
+      "suggestedCheck": "Verify that the 13000 byte expectation is correct by manually calculating or documenting the SSE message format. Consider using a range check (e.g., > 12000 && < 14000) if exact byte count is not critical."
+    }
+  ],
+  "risk": "Low",
+  "modelRiskScore": 0.05,
+  "derivedRiskScore": 0.05,
+  "meta": {
+    "mode": "abl-1-read",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 5274,
+    "outputTokens": 1182,
+    "costUsd": 0.0415215,
+    "wallMs": 25486,
+    "toolCalls": 10
+  }
+}

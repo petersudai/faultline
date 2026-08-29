@@ -1,0 +1,26 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3885,
+    "title": "fix(helper/adapter): correct env type",
+    "baseSha": "65edaf277a2dd3bb47406379904996ffdd3563e5",
+    "headSha": "a0b57dbe45d8aa72c890542ce1f3f73b755c98b4",
+    "filesChanged": 0,
+    "additions": 0,
+    "deletions": 0
+  },
+  "summary": "[review failed: Model output failed schema validation:]",
+  "findings": [],
+  "risk": "Low",
+  "modelRiskScore": 0.5,
+  "derivedRiskScore": 0,
+  "meta": {
+    "mode": "abl-4-verify",
+    "model": "error",
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "costUsd": 0,
+    "wallMs": 0,
+    "toolCalls": 0
+  }
+}

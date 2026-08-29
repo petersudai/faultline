@@ -1,0 +1,35 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 4198,
+    "title": "fix(etag): fallback if `res.clone()` is not supported",
+    "baseSha": "53656e126df4855969afa55603cd063343d65552",
+    "headSha": "6f22acef362356c58ce071eaae9decea6ac1d6a4",
+    "filesChanged": 3,
+    "additions": 44,
+    "deletions": 11
+  },
+  "summary": "This PR adds a fallback mechanism for environments where `res.clone()` is not supported (e.g., AWS Lambda). When `res.clone()` throws an error, the middleware falls back to calling `res.arrayBuffer()` to read the entire response body into memory, then generates the ETag from the buffer. The signature of `generateDigest` is updated to accept both ReadableStream and ArrayBuffer inputs. A test is added for the fallback case.",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/middleware/etag/index.ts",
+      "line": 101,
+      "category": "unhandled-edge-case",
+      "rationale": "When `res.arrayBuffer()` is called in the fallback path (line 101), if it throws an error (not just `res.clone()`), the error will propagate uncaught. The catch block broadly catches any error from `res.clone()`, but then assumes `res.arrayBuffer()` will succeed. In a truly broken environment, this could fail silently or crash the middleware.",
+      "suggestedCheck": "Verify that AWS Lambda and similar environments where `clone()` fails do support `arrayBuffer()`, or add nested error handling for the fallback path."
+    }
+  ],
+  "risk": "Low",
+  "modelRiskScore": 0.08,
+  "derivedRiskScore": 0.05,
+  "meta": {
+    "mode": "abl-4-verify",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 7181,
+    "outputTokens": 5058,
+    "costUsd": 0.037257900000000004,
+    "wallMs": 58955,
+    "toolCalls": 7
+  }
+}

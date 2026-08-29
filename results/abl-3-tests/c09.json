@@ -1,0 +1,26 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3885,
+    "title": "fix(helper/adapter): correct `env` type",
+    "baseSha": "65edaf277a2dd3bb47406379904996ffdd3563e5",
+    "headSha": "a0b57dbe45d8aa72c890542ce1f3f73b755c98b4",
+    "filesChanged": 2,
+    "additions": 36,
+    "deletions": 12
+  },
+  "summary": "This PR fixes the type signature of the `env` helper function to correctly handle both explicit generic parameters and implicit type inference from Hono's generic parameter. The change is type-level only (no runtime behavior change) and adds comprehensive type tests covering all three calling patterns.",
+  "findings": [],
+  "risk": "Low",
+  "modelRiskScore": 0.05,
+  "derivedRiskScore": 0,
+  "meta": {
+    "mode": "abl-3-tests",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 4972,
+    "outputTokens": 2030,
+    "costUsd": 0.043038099999999996,
+    "wallMs": 26879,
+    "toolCalls": 10
+  }
+}

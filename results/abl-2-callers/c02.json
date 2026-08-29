@@ -1,0 +1,35 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 4198,
+    "title": "fix(etag): fallback if `res.clone()` is not supported",
+    "baseSha": "53656e126df4855969afa55603cd063343d65552",
+    "headSha": "6f22acef362356c58ce071eaae9decea6ac1d6a4",
+    "filesChanged": 3,
+    "additions": 44,
+    "deletions": 11
+  },
+  "summary": "This PR adds a fallback mechanism for environments (like AWS Lambda) where `Response.clone()` is not supported. When cloning fails, it falls back to using `arrayBuffer()` and reconstructs the response. The signature of `generateDigest` is updated to accept both `ReadableStream` and `ArrayBuffer` inputs, and a test is added to verify the fallback works correctly.",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/middleware/etag/index.ts",
+      "line": 103,
+      "category": "unhandled-edge-case",
+      "rationale": "If the response body is already consumed before the middleware runs (by a prior middleware or handler), calling `res.arrayBuffer()` in the fallback path will fail. However, this is not a regression—the original code would also fail in this scenario since `res.clone().body` would also be unavailable. The test only covers the case where `clone()` throws, not where the body is pre-consumed.",
+      "suggestedCheck": "Verify that in practice, the response body is never consumed before the etag middleware runs. If it is, consider documenting this as a limitation or adding a check to detect pre-consumed bodies."
+    }
+  ],
+  "risk": "Low",
+  "modelRiskScore": 0.05,
+  "derivedRiskScore": 0.05,
+  "meta": {
+    "mode": "abl-2-callers",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 5264,
+    "outputTokens": 2027,
+    "costUsd": 0.03089395,
+    "wallMs": 23771,
+    "toolCalls": 7
+  }
+}

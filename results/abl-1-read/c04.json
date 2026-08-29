@@ -1,0 +1,35 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3171,
+    "title": "fix(helper/adapter): don't check `navigator` is `undefined`",
+    "baseSha": "0535579de5af90319165304be409ea9b7d5d47f3",
+    "headSha": "5c20ec4d764920eab85ae93d8c7113ebc2c6646f",
+    "filesChanged": 1,
+    "additions": 6,
+    "deletions": 2
+  },
+  "summary": "This PR changes how getRuntimeKey() checks for navigator.userAgent support by replacing an explicit undefined check with a try-catch block. This fixes a Cloudflare Pages issue where accessing navigator throws an error. The change is functionally equivalent for normal cases but lacks test coverage for the specific Cloudflare Pages scenario.",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/helper/adapter/index.ts",
+      "line": 50,
+      "category": "test-gap",
+      "rationale": "The fix addresses a specific Cloudflare Pages production environment issue (navigator being undefined and throwing on access), but the test suite only verifies the function returns 'node' in a Node.js environment. There is no test coverage for the Cloudflare Pages scenario or for the try-catch error handling path.",
+      "suggestedCheck": "Consider adding a test that mocks navigator as undefined or as a Proxy that throws on property access to verify the try-catch correctly handles the Cloudflare Pages case."
+    }
+  ],
+  "risk": "Low",
+  "modelRiskScore": 0.25,
+  "derivedRiskScore": 0.05,
+  "meta": {
+    "mode": "abl-1-read",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 7404,
+    "outputTokens": 1904,
+    "costUsd": 0.02614125,
+    "wallMs": 24935,
+    "toolCalls": 6
+  }
+}

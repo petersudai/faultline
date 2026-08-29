@@ -1,0 +1,35 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3171,
+    "title": "fix(helper/adapter): don't check `navigator` is `undefined`",
+    "baseSha": "0535579de5af90319165304be409ea9b7d5d47f3",
+    "headSha": "5c20ec4d764920eab85ae93d8c7113ebc2c6646f",
+    "filesChanged": 1,
+    "additions": 6,
+    "deletions": 2
+  },
+  "summary": "This PR changes how `getRuntimeKey()` checks for `navigator.userAgent` support by replacing an explicit `typeof navigator !== 'undefined'` check with a try-catch block. This fixes an issue in Cloudflare Pages where `navigator` exists but accessing its properties throws an error. The behavioral change is safe and equivalent for all normal cases.",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/helper/adapter/index.ts",
+      "line": 54,
+      "category": "test-gap",
+      "rationale": "The change handles a new error path (accessing navigator.userAgent throws) that wasn't previously tested. The existing test only checks the happy path on Node.js. No test covers the Cloudflare Pages scenario where navigator exists but throws on property access.",
+      "suggestedCheck": "Verify that runtime tests for Cloudflare Pages (workerd) pass with this change, or add a unit test that mocks navigator to throw on property access."
+    }
+  ],
+  "risk": "Low",
+  "modelRiskScore": 0.05,
+  "derivedRiskScore": 0.05,
+  "meta": {
+    "mode": "abl-3-tests",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 7813,
+    "outputTokens": 1374,
+    "costUsd": 0.024136849999999998,
+    "wallMs": 27471,
+    "toolCalls": 6
+  }
+}

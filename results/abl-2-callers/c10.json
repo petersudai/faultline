@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3832,
+    "title": "feat(etag): allow for custom hashing methods to be used to etag",
+    "baseSha": "6837649cd104b1886e6cb6653bf26d0700c4c3e6",
+    "headSha": "8fc6cfd20d261e44cb2adacfb0d2d9664f6c80b0",
+    "filesChanged": 3,
+    "additions": 50,
+    "deletions": 9
+  },
+  "summary": "This PR adds custom digest function support to the etag middleware, allowing users to specify alternative hashing algorithms (e.g., SHA-256 instead of SHA-1). The signature of the internal `generateDigest` function changed to accept a generator parameter. A line that forced body consumption (`await c.res.blob()`) was removed before creating 304 responses.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/middleware/etag/index.ts",
+      "line": 87,
+      "category": "unhandled-edge-case",
+      "rationale": "The line `await c.res.blob()` (line 74 in base) was removed before creating the 304 Not Modified response. This line was forcing consumption of the original response body. While the response is being replaced, the original body stream may not be properly cleaned up, potentially causing resource leaks or unexpected behavior in frameworks that track body consumption.",
+      "suggestedCheck": "Verify that removing `await c.res.blob()` does not cause resource leaks or issues with response body cleanup. Test with streaming responses and verify that the original response body is properly garbage collected. Check if Hono's Response handling requires explicit body consumption before replacement."
+    },
+    {
+      "severity": "low",
+      "file": "src/middleware/etag/digest.ts",
+      "line": 11,
+      "category": "api-contract",
+      "rationale": "The `generateDigest` function signature changed from taking 1 parameter to 2 parameters. This is an internal function (not exported as public API), and the only call site in index.ts has been updated correctly. However, if any external code directly imports and calls this function, it would break. The function is exported but appears to be internal middleware infrastructure.",
+      "suggestedCheck": "Confirm that `generateDigest` is not part of the public API contract or documented for external use. If it is, this would be a breaking change requiring a major version bump or deprecation period."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.35,
+  "derivedRiskScore": 0.2875,
+  "meta": {
+    "mode": "abl-2-callers",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 5967,
+    "outputTokens": 1715,
+    "costUsd": 0.028647099999999998,
+    "wallMs": 23320,
+    "toolCalls": 7
+  }
+}

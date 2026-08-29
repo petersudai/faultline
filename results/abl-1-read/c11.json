@@ -1,0 +1,51 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3888,
+    "title": "feat(router): support greedy matches with subsequent static components.",
+    "baseSha": "438983b3bb3d459bf9d9d2e5adf1d21a7e6588d8",
+    "headSha": "5f41ceeb32fe23e34a4a5f3f25e4b4b155bcf457",
+    "filesChanged": 6,
+    "additions": 138,
+    "deletions": 29
+  },
+  "summary": "This PR adds support for greedy regex patterns followed by static path components (e.g., `/:dirs{.+}/file.html`). It modifies the pattern matching logic in three routers and the URL utility to use lookahead assertions and a queue-based node processing system. The changes are well-tested with new test cases covering simple and complex scenarios.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/router/trie-router/node.ts",
+      "line": 180,
+      "category": "unhandled-edge-case",
+      "rationale": "The componentCount calculation uses `m[0].match(/\\//)?.length ?? 0` to count slashes in the matched string. If the matched string is empty or contains no slashes, componentCount is 0. However, the queue indexing logic assumes that a match always consumes at least one path component. If a greedy pattern matches an empty string (which shouldn't happen with `.+` but could with `*`), the queue logic could fail.",
+      "suggestedCheck": "Verify that greedy patterns like `.+` cannot match empty strings, and test edge cases where the matched string has zero slashes (e.g., single-component matches like `foo` without any `/`)."
+    },
+    {
+      "severity": "medium",
+      "file": "src/utils/url.ts",
+      "line": 62,
+      "category": "api-contract",
+      "rationale": "The `getPattern` function signature changed from `getPattern(label: string)` to `getPattern(label: string, next?: string)`. This is a breaking change for any external callers. The diff shows it's called from trie-router/node.ts and linear-router/router.ts, but there could be other callers in the codebase or external packages that depend on this function.",
+      "suggestedCheck": "Search the entire codebase for all calls to `getPattern` to ensure they are updated or compatible with the new signature. Check if this function is exported as part of a public API."
+    },
+    {
+      "severity": "low",
+      "file": "src/router/linear-router/router.ts",
+      "line": 90,
+      "category": "other",
+      "rationale": "The lookahead assertion in the linear router checks `next[1] !== ':' && next[1] !== '*'` to determine if the next part is static. However, if `next` is undefined or has length < 2, this could cause unexpected behavior. The code does check `next &&` first, but the logic assumes `next[1]` exists when `next` is truthy.",
+      "suggestedCheck": "Verify that when `next` is defined, it always has at least 2 characters (e.g., `/x` format). Add a defensive check or document this assumption."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.15,
+  "derivedRiskScore": 0.4656,
+  "meta": {
+    "mode": "abl-1-read",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 1997,
+    "outputTokens": 5388,
+    "costUsd": 0.08839585000000001,
+    "wallMs": 55287,
+    "toolCalls": 10
+  }
+}

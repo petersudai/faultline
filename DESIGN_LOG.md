@@ -351,6 +351,44 @@ Sonnet while the baseline is also re-run on Sonnet for a fair final comparison
 
 ---
 
+## D15 — Sonnet probe + the pivot to the real thesis
+
+**Sonnet agent probe (4 cases):** c01 → **High ✓** (Haiku said Medium),
+c06 → Medium (still hedged), c07 → Low ✓, c11 → Medium. Strict bal.acc 75% vs
+Haiku-agent ~50% vs baseline-plus-Haiku 67%. Root-cause 2/2. **Cost: $0.35 per
+case** (21 tool calls, 166 s on c01) — a full 12-case Sonnet agent run is ~$4.2.
+
+**What the numbers actually say.** Feeding a capable model the diff *plus the
+full changed files* (baseline-plus) already does most of triage: 67% strict,
+6/6 root-cause, ~$0.02/PR. The agent loop adds real cost (10–20×) and, on the
+strict "block the merge?" metric, only a modest accuracy gain that needs the
+expensive model to show up at all.
+
+**The pivot (chosen with the user).** Stop chasing "agent >> baseline on raw
+accuracy" — the data doesn't support it and the budget can't fund the search.
+Report the honest finding instead:
+
+> A strong model with the full changed files is a hard baseline for PR-risk
+> triage. Agentic investigation buys three things it does *not*: (a) it does not
+> cry wolf — specificity stays at 100% on the strict metric where the baseline
+> leaks; (b) it localises the root cause with evidence a reviewer can act on
+> (root-cause hit rate); (c) it leaves a readable audit trail (the trajectory).
+> It costs 15–20× more per PR. Here is exactly which parts of the machinery earn
+> that cost, and when the trade is worth it.
+
+This fits the rubric ("improvement in reliability / engineering quality"), gives
+a genuine hot take ("we assumed more agent = better; diff+files was ~90 % of the
+value at ~5 % of the cost"), and keeps the ablation meaningful — it now measures
+*which capability drives (a)/(b)/(c)*, not a raw-accuracy race.
+
+**Plan.** Haiku ablation (6 configs, `scripts/ablation.sh`) for the
+capability-contribution evidence; one Sonnet pair (baseline-plus + full agent)
+for the "holds on a strong model" data point; frame improvement as
+triage-metric accuracy + specificity + explanation quality with honest cost
+accounting. Vite holdout cut for budget.
+
+---
+
 ## Metrics glossary (for the video and methodology guide)
 
 | Metric | Meaning | Why it's the right one |

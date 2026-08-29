@@ -1,0 +1,35 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3800,
+    "title": "fix(context): single body overrides other returns",
+    "baseSha": "fa6f51bb1b110cddc7dc41cb7e531fab27fe871f",
+    "headSha": "92a1a129e6e9f430f93e35d217a7bd2a324c85cb",
+    "filesChanged": 3,
+    "additions": 36,
+    "deletions": 11
+  },
+  "summary": "This PR fixes type inference for the `body()` method by adding generic type parameters to the `BodyRespond` interface, allowing it to return `TypedResponse` with proper status code tracking. This enables correct type union of status codes when multiple response methods are used in different branches. The runtime behavior is unchanged—only type signatures are modified.",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/context.ts",
+      "line": 737,
+      "category": "other",
+      "rationale": "The implementation uses `as ReturnType<BodyRespond>` type assertion to cast the result. While this is necessary for TypeScript to accept the return value, it bypasses type checking at the implementation level. However, since the actual runtime behavior (calling `#newResponse()`) is unchanged and the assertion is only for type compatibility, this is a safe pattern used elsewhere in the codebase (e.g., `text()` method uses similar `@ts-expect-error` patterns).",
+      "suggestedCheck": "Verify that the type assertion correctly represents all code paths: both `typeof arg === 'number'` and the else branch should produce compatible return types."
+    }
+  ],
+  "risk": "Low",
+  "modelRiskScore": 0.05,
+  "derivedRiskScore": 0.05,
+  "meta": {
+    "mode": "abl-1-read",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 5098,
+    "outputTokens": 1593,
+    "costUsd": 0.0963744,
+    "wallMs": 26717,
+    "toolCalls": 9
+  }
+}

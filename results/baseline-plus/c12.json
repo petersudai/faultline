@@ -1,0 +1,51 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3833,
+    "title": "fix(compress): don't compress server-sent events",
+    "baseSha": "2a68c594d24c282d0c9f9c286f114acf5019f383",
+    "headSha": "aee7f69dcfc60f379a7830241aa6e82c9db5718f",
+    "filesChanged": 2,
+    "additions": 14,
+    "deletions": 2
+  },
+  "summary": "This PR fixes a bug where the `compress` middleware was buffering server-sent events (SSE) instead of streaming them. The fix adds a negative lookahead to the content-type regex to exclude `text/event-stream` from compression, and adds a test to verify SSE responses are not compressed.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/middleware/compress/index.test.ts",
+      "line": 168,
+      "category": "test-gap",
+      "rationale": "The SSE test expects exactly 13000 bytes uncompressed (1000 SSE messages × 13 bytes each for 'data: chunk\\n\\n'). This is a brittle assertion that depends on the exact format of SSE output. If the SSE helper changes its formatting (e.g., adds extra whitespace or fields), this test will fail even if the core fix (not compressing SSE) still works correctly.",
+      "suggestedCheck": "Verify that the 13000-byte expectation is correct by manually calculating or logging the actual SSE output format. Consider a more flexible assertion like checking that the response is not compressed (Content-Encoding header is null) rather than a hard-coded byte length."
+    },
+    {
+      "severity": "low",
+      "file": "src/utils/compress.ts",
+      "line": 10,
+      "category": "other",
+      "rationale": "The regex change adds a negative lookahead `(?!event-stream(?:[;\\s]|$))` to exclude `text/event-stream`. While correct, this is a complex regex modification that could be error-prone. The lookahead correctly handles cases like `text/event-stream; charset=utf-8` but the regex is already quite long and difficult to maintain.",
+      "suggestedCheck": "Manually test the regex against edge cases: `text/event-stream`, `text/event-stream;charset=utf-8`, `text/event-stream; boundary=...`, and ensure it still matches other text types like `text/plain`, `text/html`, etc. Consider adding a comment explaining the negative lookahead."
+    },
+    {
+      "severity": "low",
+      "file": "src/middleware/compress/index.test.ts",
+      "line": 68,
+      "category": "test-gap",
+      "rationale": "The SSE test only verifies that compression is not applied (Content-Encoding is null). It does not verify that the SSE stream actually works correctly (i.e., that messages are streamed in real-time rather than buffered). The test only checks the final byte length, not the streaming behavior.",
+      "suggestedCheck": "Consider adding a test that verifies SSE messages are actually streamed (e.g., by checking that data arrives in chunks rather than all at once), or at minimum document that this test only verifies non-compression, not streaming correctness."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.08,
+  "derivedRiskScore": 0.3231,
+  "meta": {
+    "mode": "baseline-plus",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 3,
+    "outputTokens": 719,
+    "costUsd": 0.00982675,
+    "wallMs": 8973,
+    "toolCalls": 0
+  }
+}

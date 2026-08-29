@@ -1,0 +1,59 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 4198,
+    "title": "fix(etag): fallback if `res.clone()` is not supported",
+    "baseSha": "53656e126df4855969afa55603cd063343d65552",
+    "headSha": "6f22acef362356c58ce071eaae9decea6ac1d6a4",
+    "filesChanged": 3,
+    "additions": 44,
+    "deletions": 11
+  },
+  "summary": "This PR adds fallback handling for environments where `Response.clone()` is not supported (e.g., AWS Lambda). When cloning fails, it reads the response as an ArrayBuffer and reconstructs the Response. The `generateDigest` function is updated to accept both ReadableStream and ArrayBuffer inputs.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/middleware/etag/index.ts",
+      "line": 101,
+      "category": "data-loss",
+      "rationale": "After calling `res.arrayBuffer()` on line 101, the response body is consumed and cannot be read again. The original response body is lost before being sent to the client. On line 103, a new Response is created from the buffer and assigned to `c.res`, but this happens inside the catch block only. If the response was already partially sent or if there are other middleware that depend on the original response, this could cause issues.",
+      "suggestedCheck": "Verify that in the fallback path, the reconstructed Response on line 103 properly preserves all response properties (status, statusText, headers) and that the body is correctly available for downstream consumers. Test that the response body is not lost when sent to the client."
+    },
+    {
+      "severity": "medium",
+      "file": "src/middleware/etag/index.ts",
+      "line": 103,
+      "category": "api-contract",
+      "rationale": "The fallback creates a new Response object from the buffer, but the second argument `res` is passed as the init object. This relies on Response constructor accepting a Response object as init, which may not be standard behavior. The constructor typically expects a ResponseInit object with specific properties. This could fail or behave unexpectedly in some environments.",
+      "suggestedCheck": "Verify that `new Response(buffer, res)` correctly copies all necessary properties (status, statusText, headers) from the original response. Consider explicitly constructing the init object: `new Response(buffer, { status: res.status, statusText: res.statusText, headers: res.headers })`."
+    },
+    {
+      "severity": "low",
+      "file": "src/middleware/etag/digest.ts",
+      "line": 20,
+      "category": "unhandled-edge-case",
+      "rationale": "The check `if (input instanceof ArrayBuffer)` will not catch all ArrayBuffer-like objects (e.g., SharedArrayBuffer). While this is unlikely to be an issue in practice, it's worth noting that the type signature accepts `ArrayBuffer` but the runtime check is specific.",
+      "suggestedCheck": "Confirm that SharedArrayBuffer or other ArrayBuffer-like types are not expected inputs, or add appropriate handling if they are."
+    },
+    {
+      "severity": "low",
+      "file": "src/middleware/etag/index.test.ts",
+      "line": 158,
+      "category": "test-gap",
+      "rationale": "The test mocks `clone()` to throw an error, but it doesn't verify that the response body is correctly preserved and sent to the client after the fallback. The test only checks that the ETag is generated and the status is 200, but doesn't confirm the body content is intact after the fallback path reconstructs the Response.",
+      "suggestedCheck": "The test does verify `await res.text()` returns the correct content on line 178, which is good. However, consider adding a test that verifies the response can be read multiple times or that headers are preserved correctly in the fallback scenario."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.25,
+  "derivedRiskScore": 0.4923,
+  "meta": {
+    "mode": "baseline-plus",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 3,
+    "outputTokens": 865,
+    "costUsd": 0.0148555,
+    "wallMs": 10325,
+    "toolCalls": 0
+  }
+}

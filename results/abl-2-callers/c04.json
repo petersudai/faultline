@@ -1,0 +1,26 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3171,
+    "title": "fix(helper/adapter): don't check `navigator` is `undefined`",
+    "baseSha": "0535579de5af90319165304be409ea9b7d5d47f3",
+    "headSha": "5c20ec4d764920eab85ae93d8c7113ebc2c6646f",
+    "filesChanged": 1,
+    "additions": 6,
+    "deletions": 2
+  },
+  "summary": "This PR changes how `getRuntimeKey()` checks for `navigator.userAgent` support in Cloudflare Pages. Instead of checking `typeof navigator !== 'undefined'` first, it now uses a try-catch block to directly access `navigator.userAgent`. This addresses an issue where Cloudflare Pages has `navigator` undefined but accessing `navigator.userAgent` doesn't throw an error.",
+  "findings": [],
+  "risk": "Low",
+  "modelRiskScore": 0.05,
+  "derivedRiskScore": 0,
+  "meta": {
+    "mode": "abl-2-callers",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 7634,
+    "outputTokens": 1313,
+    "costUsd": 0.023902200000000002,
+    "wallMs": 19308,
+    "toolCalls": 5
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3800,
+    "title": "fix(context): single body overrides other returns",
+    "baseSha": "fa6f51bb1b110cddc7dc41cb7e531fab27fe871f",
+    "headSha": "92a1a129e6e9f430f93e35d217a7bd2a324c85cb",
+    "filesChanged": 3,
+    "additions": 36,
+    "deletions": 11
+  },
+  "summary": "This PR fixes a type-system issue where the `.body()` method wasn't properly typed with `TypedResponse`, causing it to override type information from other response methods (like `.text()`, `.json()`) in conditional returns. The fix adds generic type parameters to the `BodyRespond` interface and casts the return value appropriately. This is a pure type-level change with no runtime impact.",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/context.ts",
+      "line": 737,
+      "category": "other",
+      "rationale": "The implementation uses `as ReturnType<BodyRespond>` type assertion. While this is safe (TypedResponse is type-only and the actual return is still a Response), it's worth confirming that TypeScript's type inference can't be improved to avoid the assertion.",
+      "suggestedCheck": "Verify that the type assertion is necessary and that removing it would cause type errors in the implementation."
+    }
+  ],
+  "risk": "Low",
+  "modelRiskScore": 0.05,
+  "derivedRiskScore": 0.05,
+  "meta": {
+    "mode": "abl-2-callers",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 5246,
+    "outputTokens": 2178,
+    "costUsd": 0.05113365,
+    "wallMs": 27677,
+    "toolCalls": 9
+  }
+}

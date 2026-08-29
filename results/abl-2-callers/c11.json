@@ -1,0 +1,51 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3888,
+    "title": "feat(router): support greedy matches with subsequent static components.",
+    "baseSha": "438983b3bb3d459bf9d9d2e5adf1d21a7e6588d8",
+    "headSha": "5f41ceeb32fe23e34a4a5f3f25e4b4b155bcf457",
+    "filesChanged": 6,
+    "additions": 138,
+    "deletions": 29
+  },
+  "summary": "This PR adds support for greedy pattern matches (e.g., `:dirs{.+}`) followed by static path components. It modifies `getPattern()` to accept an optional `next` parameter and adds lookahead assertions to regex patterns. The trie-router and linear-router are updated to use this feature. The main risk is the queue-based deferred node processing logic in trie-router's search method, which uses array indexing that could be fragile.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/router/trie-router/node.ts",
+      "line": 180,
+      "category": "unhandled-edge-case",
+      "rationale": "The componentCount calculation uses `m[0].match(/\\//)?.length ?? 0` to count slashes in the matched greedy pattern. This counts the number of `/` characters, but the queue indexing logic at line 206 (`curNodesQueue.shift()`) assumes a specific ordering. If multiple greedy patterns match at different component depths in the same iteration, the queue indexing could become misaligned. The sparse array approach with shift() is fragile and could fail with complex route hierarchies.",
+      "suggestedCheck": "Add test cases with multiple overlapping greedy patterns at different nesting levels (e.g., `/:a{.+}/x/:b{.+}/y/:c`) to verify the queue processing handles all cases correctly."
+    },
+    {
+      "severity": "medium",
+      "file": "src/router/linear-router/router.ts",
+      "line": 90,
+      "category": "unhandled-edge-case",
+      "rationale": "The lookahead assertion is constructed as `(?=${next})` where `next` is interpolated directly into the regex pattern without escaping. While path components typically don't contain regex metacharacters, if a static component contains characters like `.`, `*`, `+`, or `?`, they would be interpreted as regex operators rather than literals, causing incorrect matching.",
+      "suggestedCheck": "Verify that the `next` component is properly escaped before interpolation into the regex, or add a test with a static component containing regex metacharacters (e.g., `/:prefix{.+}/file.min.js`)."
+    },
+    {
+      "severity": "low",
+      "file": "src/utils/url.ts",
+      "line": 62,
+      "category": "other",
+      "rationale": "The cache key format `${label}#${next}` could theoretically collide if a label contains the `#` character. While unlikely in practice (labels are typically parameter names), this is a potential edge case. A more robust approach would use a separator that cannot appear in labels.",
+      "suggestedCheck": "Consider using a more robust cache key format, such as JSON serialization or a separator guaranteed not to appear in labels."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.25,
+  "derivedRiskScore": 0.4656,
+  "meta": {
+    "mode": "abl-2-callers",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 2071,
+    "outputTokens": 5208,
+    "costUsd": 0.0813136,
+    "wallMs": 63593,
+    "toolCalls": 11
+  }
+}

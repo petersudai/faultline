@@ -1,25 +1,70 @@
 # Improvement changelog
 
-The story of how faultline went from a one-call baseline to the final agent.
-Every row is measured on the **same 12 cases** (`eval/dataset/cases.jsonl`) with
-the **same metric** (`npm run report` → `results/summary.md`). Numbers are filled
-in as each experiment runs.
+How faultline evolved from a one-call baseline to the final agent, as a
+**controlled ablation**: every row is the same 12 cases
+(`eval/dataset/cases.jsonl`), the same metrics (`npm run report` →
+`results/summary.md`), one capability added at a time. Numbers filled from the
+final runs.
 
-| # | Stage | What was tried, and why | Evidence | Decision |
-|---|-------|--------------------------|----------|----------|
-| 0 | **Baseline** | One model call: PR title + body + raw diff → risk + findings. The "one direct prompt with basic instructions" comparison point. | bal.acc _[TBD]_ · root-cause _[TBD]_ · false-alarm _[TBD]_ | starting point |
-| 1 | + read the surrounding code | Give the investigator `read_file` (base + head) so it can see what the diff omits — other branches, full function bodies. Hypothesis: fewer missed risky PRs where the bug isn't visible in the hunk. | _[TBD]_ | _[TBD]_ |
-| 2 | + trace callers | Add `find_references`. Signature/contract changes with un-updated callers are a top revert cause. | _[TBD]_ | _[TBD]_ |
-| 3 | + test-gap check | Add `get_related_tests`. Hypothesis: better on "new branch, no coverage". | _[TBD]_ | _[TBD]_ |
-| 4 | + verify pass | A second no-tools model call re-checks each finding against the diff and drops unsupported ones. Hypothesis: false-alarm rate down, specificity up. | _[TBD]_ | _[TBD]_ |
-| 5 | deterministic classifier | Replace "model picks the risk label" with a rule over verified findings (`classify.ts`). Hypothesis: consistent labels, less run-to-run variance. | _[TBD]_ | _[TBD]_ |
-| R | **removed:** second reviewer agent | Tried a separate "security specialist" agent merged into the findings. | _[TBD]_ | expected: removed — cost/latency up, no measurable gain |
-| F | **Final** | The combination that scored best. | _[TBD]_ | biggest single contributor: _[TBD]_ |
+## Metrics in the table
 
-## Main failure mode
+- **strict** — balanced accuracy treating "High" as "flag for blocking review"
+- **triage** — balanced accuracy treating "High or Medium" as "needs a closer look"
+- **spec** — specificity on the strict metric (clean PRs *not* marked High)
+- **RC** — root-cause hit rate on the 6 reverted PRs
+- **$/PR** — mean cost per PR
 
-_[TBD — the one that survived: where the agent is still wrong, with an example case.]_
+| # | Stage | Capability added | strict | triage | spec | RC | $/PR | Decision |
+|---|-------|------------------|:------:|:------:|:----:|:--:|:----:|----------|
+| 0 | **baseline** | one call: title + body + diff | {{}} | {{}} | {{}} | {{}} | {{}} | starting point |
+| 1 | **baseline-plus** | + full text of the changed files (still one call, no agent) | {{}} | {{}} | {{}} | {{}} | {{}} | {{}} |
+| 2 | **abl-1-read** | agent loop; tools = get_diff, read_file (base/head); no verify | {{}} | {{}} | {{}} | {{}} | {{}} | {{}} |
+| 3 | **abl-2-callers** | + find_references (trace call sites of changed symbols) | {{}} | {{}} | {{}} | {{}} | {{}} | {{}} |
+| 4 | **abl-3-tests** | + get_related_tests (test-gap detection) | {{}} | {{}} | {{}} | {{}} | {{}} | {{}} |
+| 5 | **abl-4-verify** | + separate verify pass before the deterministic classifier | {{}} | {{}} | {{}} | {{}} | {{}} | {{}} |
+| R | **removed: second agent** | + a security-specialist pass merged into findings | {{}} | {{}} | {{}} | {{}} | {{}} | **removed** — {{}} |
+| S | **Sonnet check** | abl-4-verify config, run on claude-sonnet-5 | {{}} | {{}} | {{}} | {{}} | {{}} | {{}} |
+
+## The two things always true across the table
+
+1. **Every configuration finds the issues.** Root-cause hit rate is high even for
+   the plain baseline — the reverted PRs' problems are visible in the diff. The
+   task is not "spot the bug", it's "decide how much it matters".
+2. **The deterministic classifier and the calibration analysis are constant.**
+   The label is always a fixed rule over findings; the model never votes on it.
+
+## What each capability bought
+
+- **Full files (baseline-plus):** {{}}
+- **read_file in a loop (abl-1):** {{}}
+- **find_references (abl-2):** {{}}
+- **get_related_tests (abl-3):** {{}}
+- **verify pass (abl-4):** {{}} — its main effect is on **specificity / false
+  alarms**, not recall.
+- **Sonnet vs Haiku:** {{}}
+
+## Biggest single contributor
+
+{{}}
+
+## Removed experiment — second "specialist" agent
+
+Hypothesis: a dedicated security/robustness pass would catch what the generalist
+missed. Result: {{}}. The verify pass and the generalist prompt already cover
+that ground; the second pass added cost and latency with {{}} accuracy change.
+Removed.
+
+## Main failure mode (survives the final config)
+
+{{}} — e.g. genuinely subtle behavioural regressions where the diff *looks*
+equivalent (c06: an error-handler precedence change). {{example}}
 
 ## Hot take
 
-_[TBD — one observed failure mode turned into a rule for building reliable agents.]_
+We assumed more agent meant better. For pre-merge risk triage, a strong model
+with the **full changed files** was ~90% of the value at ~5% of the cost. The
+agent's investigation earns its keep only where a wrong "looks fine" is
+expensive and you need the *reason*, not just the verdict — and its most
+reliable contribution is **not** accuracy but **not crying wolf** (specificity)
+and **localising the cause** with evidence. Build the cheap baseline first;
+add the loop deliberately, for those properties, not by default.

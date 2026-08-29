@@ -1,0 +1,51 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3171,
+    "title": "fix(helper/adapter): don't check `navigator` is `undefined`",
+    "baseSha": "0535579de5af90319165304be409ea9b7d5d47f3",
+    "headSha": "5c20ec4d764920eab85ae93d8c7113ebc2c6646f",
+    "filesChanged": 1,
+    "additions": 6,
+    "deletions": 2
+  },
+  "summary": "This PR changes runtime detection to use try-catch instead of checking if `navigator` is defined before accessing `navigator.userAgent`. The fix addresses Cloudflare Pages where `navigator` is undefined in production but `navigator.userAgent` can still be accessed. However, the change introduces a potential issue in the `checkUserAgentEquals` function which still directly accesses `navigator.userAgent` without protection.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "src/helper/adapter/index.ts",
+      "line": 86,
+      "category": "unhandled-edge-case",
+      "rationale": "The `checkUserAgentEquals` function (line 86) directly accesses `navigator.userAgent` without any try-catch or existence check. If `navigator` is undefined or `navigator.userAgent` throws an error in any runtime, this will crash. The PR's fix only protects the check in `getRuntimeKey`, but `checkUserAgentEquals` is called from within that function (line 60) and could still fail if the try-catch in `getRuntimeKey` succeeds but then `checkUserAgentEquals` throws.",
+      "suggestedCheck": "Verify that `checkUserAgentEquals` is safe to call when `navigator` might be undefined or when accessing `navigator.userAgent` might throw. Consider wrapping the access in `checkUserAgentEquals` with error handling or passing the userAgent value as a parameter instead of accessing it directly."
+    },
+    {
+      "severity": "medium",
+      "file": "src/helper/adapter/index.ts",
+      "line": 54,
+      "category": "error-handling",
+      "rationale": "The try-catch silently swallows all exceptions with an empty catch block. While this is intentional for the fix, it masks any unexpected errors that might occur during `navigator.userAgent` access. If there's a different error (e.g., a security policy violation), it will be silently ignored and `userAgentSupported` will remain false, potentially leading to incorrect runtime detection without any diagnostic information.",
+      "suggestedCheck": "Consider whether silent error swallowing is appropriate here, or if logging/debugging would be helpful. Verify this behavior is tested across all target runtimes (Node, Deno, Bun, Cloudflare Workers/Pages, Fastly, etc.)."
+    },
+    {
+      "severity": "medium",
+      "file": "src/helper/adapter/index.ts",
+      "line": 50,
+      "category": "test-gap",
+      "rationale": "The PR description indicates tests were not added (checkbox unchecked). The change modifies core runtime detection logic that affects multiple platforms. Without tests specifically covering the Cloudflare Pages scenario where `navigator` is undefined but `navigator.userAgent` is accessible, there's risk of regression or incomplete coverage of the fix.",
+      "suggestedCheck": "Verify that tests exist or will be added to cover: (1) Cloudflare Pages production environment behavior, (2) other runtimes still work correctly, (3) the try-catch properly handles the edge case without breaking existing detection."
+    }
+  ],
+  "risk": "High",
+  "modelRiskScore": 0.35,
+  "derivedRiskScore": 0.7469,
+  "meta": {
+    "mode": "baseline-plus",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 1902,
+    "outputTokens": 767,
+    "costUsd": 0.005737,
+    "wallMs": 9656,
+    "toolCalls": 0
+  }
+}

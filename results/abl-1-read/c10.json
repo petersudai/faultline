@@ -1,0 +1,35 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3832,
+    "title": "feat(etag): allow for custom hashing methods to be used to etag",
+    "baseSha": "6837649cd104b1886e6cb6653bf26d0700c4c3e6",
+    "headSha": "8fc6cfd20d261e44cb2adacfb0d2d9664f6c80b0",
+    "filesChanged": 3,
+    "additions": 50,
+    "deletions": 9
+  },
+  "summary": "This PR adds support for custom hashing algorithms to the etag middleware by introducing an optional `generateDigest` parameter. The main behavioral change is the removal of `await c.res.blob()` before creating 304 responses, which could affect response body handling in edge cases.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/middleware/etag/index.ts",
+      "line": 87,
+      "category": "unhandled-edge-case",
+      "rationale": "The line `await c.res.blob()` was removed from the 304 response path (previously at line 74 in base). This line was explicitly commented as 'Force using body' and ensured the response body was consumed before creating the 304 response. Removing it could cause issues if the body stream needs to be consumed for side effects or cleanup.",
+      "suggestedCheck": "Verify that removing `await c.res.blob()` doesn't break response body handling in 304 scenarios. Run existing tests to confirm 304 responses with various body types still work correctly."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.25,
+  "derivedRiskScore": 0.25,
+  "meta": {
+    "mode": "abl-1-read",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 5818,
+    "outputTokens": 2172,
+    "costUsd": 0.03645245,
+    "wallMs": 27853,
+    "toolCalls": 8
+  }
+}

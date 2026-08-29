@@ -1,0 +1,51 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3800,
+    "title": "fix(context): single body overrides other returns",
+    "baseSha": "fa6f51bb1b110cddc7dc41cb7e531fab27fe871f",
+    "headSha": "92a1a129e6e9f430f93e35d217a7bd2a324c85cb",
+    "filesChanged": 3,
+    "additions": 36,
+    "deletions": 11
+  },
+  "summary": "This PR fixes a type-safety issue where `c.body()` was not properly tracking status codes in union types, causing type inference to lose information about multiple possible response statuses. The fix adds generic type parameters to the `BodyRespond` interface and casts the return value to ensure TypeScript correctly infers the status code.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/context.ts",
+      "line": 735,
+      "category": "other",
+      "rationale": "The `body()` method now casts its return value to `ReturnType<BodyRespond>`. While this is necessary for type inference, the cast bypasses TypeScript's type checking. If the actual runtime return type differs from what the generic types promise, the cast could hide a real bug. The cast is applied after calling `#newResponse()`, which returns a plain `Response` object, not a `Response & TypedResponse<...>` intersection.",
+      "suggestedCheck": "Verify that `#newResponse()` actually returns a Response object that is compatible with the `TypedResponse` intersection type being cast to. Confirm that the status code and data type information are correctly preserved through the method call chain."
+    },
+    {
+      "severity": "low",
+      "file": "src/context.test.ts",
+      "line": 154,
+      "category": "test-gap",
+      "rationale": "The test at line 150-159 was modified to call `c.body('Hi')` twice (lines 154 and 157) instead of reusing the first response object. While this tests the intended behavior (that multiple calls to `c.body()` don't override headers), it changes the test semantics. The original test checked that `c.res` (the internal response object) was updated correctly; the new test checks that a fresh call to `c.body()` sees the cleared header. Both are valid, but the change in test intent should be verified.",
+      "suggestedCheck": "Confirm that the new test still validates the original concern: that calling `c.body()` multiple times correctly applies header changes from `c.header()` calls in between."
+    },
+    {
+      "severity": "low",
+      "file": "src/types.test.ts",
+      "line": 2328,
+      "category": "test-gap",
+      "rationale": "The new type test at lines 2328-2346 validates that `c.body()` correctly infers a union of status codes (204 | 201 | 200) when used in different branches. This is a good test for the fix, but it only tests the type inference, not the runtime behavior. There is no runtime test confirming that the actual status codes returned are correct.",
+      "suggestedCheck": "Consider adding a runtime test (in addition to the type test) that verifies the actual HTTP status codes returned by `c.body()` in the different branches match the inferred types."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.15,
+  "derivedRiskScore": 0.3231,
+  "meta": {
+    "mode": "baseline-plus",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 3,
+    "outputTokens": 724,
+    "costUsd": 0.0349405,
+    "wallMs": 9928,
+    "toolCalls": 0
+  }
+}

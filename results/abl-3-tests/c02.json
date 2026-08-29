@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 4198,
+    "title": "fix(etag): fallback if `res.clone()` is not supported",
+    "baseSha": "53656e126df4855969afa55603cd063343d65552",
+    "headSha": "6f22acef362356c58ce071eaae9decea6ac1d6a4",
+    "filesChanged": 3,
+    "additions": 44,
+    "deletions": 11
+  },
+  "summary": "This PR adds a fallback mechanism for environments where `res.clone()` is not supported (e.g., AWS Lambda). When `res.clone()` throws an error, the middleware falls back to calling `res.arrayBuffer()` to read the entire response body into memory, then generates the ETag from the buffer. The signature of `generateDigest` is updated to accept both ReadableStream and ArrayBuffer inputs. The changes appear sound with a test added for the fallback case.",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/middleware/etag/index.ts",
+      "line": 101,
+      "category": "unhandled-edge-case",
+      "rationale": "When `res.arrayBuffer()` is called in the fallback path, if it throws an error (not just `res.clone()`), the error will propagate uncaught. The catch block is broad and catches any error from `res.clone()`, but then assumes `res.arrayBuffer()` will succeed. In a truly broken environment, this could fail.",
+      "suggestedCheck": "Verify that AWS Lambda and similar environments where `clone()` fails do support `arrayBuffer()`, or add nested error handling."
+    },
+    {
+      "severity": "low",
+      "file": "src/middleware/etag/index.test.ts",
+      "line": 170,
+      "category": "test-gap",
+      "rationale": "The test mocks `clone()` to throw an error, but does not test what happens if `arrayBuffer()` also fails. This could mask issues in truly broken environments.",
+      "suggestedCheck": "Consider adding a test case where both `clone()` and `arrayBuffer()` fail, to verify error handling."
+    }
+  ],
+  "risk": "Low",
+  "modelRiskScore": 0.12,
+  "derivedRiskScore": 0.0975,
+  "meta": {
+    "mode": "abl-3-tests",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 5389,
+    "outputTokens": 4513,
+    "costUsd": 0.0490134,
+    "wallMs": 52617,
+    "toolCalls": 7
+  }
+}

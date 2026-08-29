@@ -1,0 +1,35 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3800,
+    "title": "fix(context): single body overrides other returns",
+    "baseSha": "fa6f51bb1b110cddc7dc41cb7e531fab27fe871f",
+    "headSha": "92a1a129e6e9f430f93e35d217a7bd2a324c85cb",
+    "filesChanged": 3,
+    "additions": 36,
+    "deletions": 11
+  },
+  "summary": "This PR adds TypeScript type refinement to the `body()` method by making it return `Response & TypedResponse<..., U, 'body'>` instead of just `Response`, allowing the type system to track status codes across multiple response methods in a single route. The implementation is unchanged (just cast to the new type), and a new type test validates the union of status codes works correctly. However, a test was modified in a way that changes what it tests.",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/context.test.ts",
+      "line": 157,
+      "category": "test-gap",
+      "rationale": "The test at line 150-159 was changed from testing `c.res` (the cached response object) to testing a new call to `c.body()`. The old code `res = c.res` was checking that the cached response reflects header changes, but the new code `const res2 = c.body('Hi')` creates a fresh response. This changes the test's intent and may no longer catch issues with the `c.res` caching mechanism.",
+      "suggestedCheck": "Verify that the original test intent (checking that `c.res` reflects header state changes) is still covered elsewhere, or restore the test to check both `c.res` and a new `c.body()` call."
+    }
+  ],
+  "risk": "Low",
+  "modelRiskScore": 0.15,
+  "derivedRiskScore": 0.05,
+  "meta": {
+    "mode": "abl-3-tests",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 5370,
+    "outputTokens": 1943,
+    "costUsd": 0.0463057,
+    "wallMs": 28429,
+    "toolCalls": 10
+  }
+}

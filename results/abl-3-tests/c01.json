@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 4707,
+    "title": "perf(context): add fast path to c.json() matching c.text() optimization",
+    "baseSha": "69f303e0c3a45c09e7ec56611973751208737857",
+    "headSha": "a32bdde71473f1534789d0b11ea0eae710e611f7",
+    "filesChanged": 1,
+    "additions": 14,
+    "deletions": 6
+  },
+  "summary": "This PR adds a fast path to c.json() using Response.json(object) when no status, headers, or finalized state exists. The change mirrors an earlier optimization to c.text(). However, there is a critical gap: the fast path uses Response.json() while the slow path uses JSON.stringify() + setDefaultContentType(). While both should set Content-Type to application/json, the fast path is not covered by existing tests, creating risk that subtle differences in header handling or charset encoding could cause behavioral divergence.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/context.ts",
+      "line": 712,
+      "category": "test-gap",
+      "rationale": "The fast path using Response.json(object) at line 712 is not covered by existing tests. The test at line 64-71 of context.test.ts always provides status and headers arguments, forcing the slow path. There is no test for the simple case c.json({...}) with no arguments, which is the exact scenario the fast path targets.",
+      "suggestedCheck": "Add a test case for c.json() with no arguments to verify the fast path produces identical Content-Type headers and response body as the slow path. Example: const res = c.json({ message: 'Hello' }); expect(res.headers.get('Content-Type')).toMatch('application/json'); expect(await res.text()).toBe('{\"message\":\"Hello\"}');"
+    },
+    {
+      "severity": "medium",
+      "file": "src/context.ts",
+      "line": 712,
+      "category": "api-contract",
+      "rationale": "Response.json() is a native Web API that may have different behavior than the custom JSON.stringify() + setDefaultContentType() path. Specifically: (1) Response.json() may set charset differently, (2) Response.json() may handle edge cases (circular references, undefined values) differently than JSON.stringify(), (3) The fast path doesn't go through the custom header merging logic in #newResponse() which handles set-cookie and other special headers.",
+      "suggestedCheck": "Verify that Response.json() and JSON.stringify() produce identical Content-Type headers (including charset). Test edge cases like objects with undefined values, circular references, and special characters. Confirm that the fast path behavior matches the slow path for all supported input types."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.35,
+  "derivedRiskScore": 0.4375,
+  "meta": {
+    "mode": "abl-3-tests",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 5643,
+    "outputTokens": 2419,
+    "costUsd": 0.05400725,
+    "wallMs": 30824,
+    "toolCalls": 10
+  }
+}

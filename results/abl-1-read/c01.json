@@ -1,0 +1,35 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 4707,
+    "title": "perf(context): add fast path to c.json() matching c.text() optimization",
+    "baseSha": "69f303e0c3a45c09e7ec56611973751208737857",
+    "headSha": "a32bdde71473f1534789d0b11ea0eae710e611f7",
+    "filesChanged": 1,
+    "additions": 14,
+    "deletions": 6
+  },
+  "summary": "This PR adds a fast path to c.json() matching the existing c.text() optimization. When no status, headers, or finalized state exists, it uses Response.json(object) directly instead of going through #newResponse(). The change is a straightforward performance optimization that mirrors the existing text() pattern.",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/context.ts",
+      "line": 712,
+      "category": "api-contract",
+      "rationale": "The fast path uses Response.json(object) instead of JSON.stringify(object) + #newResponse(). While functionally equivalent for the common case (no custom headers, no status override), Response.json() is a Web API that may have different behavior in edge cases or older environments. The PR description mentions Node.js benchmarks, suggesting compatibility was verified.",
+      "suggestedCheck": "Verify that Response.json() is available in all target environments (Node.js 18+, browsers, Cloudflare Workers, etc.) and that its behavior matches the slow path for edge cases like circular references or special JSON values."
+    }
+  ],
+  "risk": "Low",
+  "modelRiskScore": 0.12,
+  "derivedRiskScore": 0.05,
+  "meta": {
+    "mode": "abl-1-read",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 5360,
+    "outputTokens": 2369,
+    "costUsd": 0.047421050000000006,
+    "wallMs": 32754,
+    "toolCalls": 8
+  }
+}

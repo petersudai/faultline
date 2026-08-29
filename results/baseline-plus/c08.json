@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3849,
+    "title": "fix(factory): correct the type of `factory.createMiddleware()`",
+    "baseSha": "3fba7a5e7d92cdb69c817dd15702508812305171",
+    "headSha": "dbfe2477ffdcb2eedf372ed32dd50b204aceb903",
+    "filesChanged": 2,
+    "additions": 43,
+    "deletions": 21
+  },
+  "summary": "This PR fixes the type signature of `factory.createMiddleware()` by adding an explicit return type annotation and changing default type parameters from `any` to more specific defaults (`Env` and `string`). The changes are purely type-level and include a new test to verify the corrected behavior.",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/helper/factory/index.ts",
+      "line": 286,
+      "category": "api-contract",
+      "rationale": "The default type parameter for `Factory` class changed from `P extends string = any` to `P extends string = string`. While `any` is more permissive, `string` is more correct semantically. This could theoretically affect code that relied on `any` behavior, but such code would be unusual and likely incorrect.",
+      "suggestedCheck": "Verify that no existing code instantiates `Factory` or `createFactory` without explicit type parameters and relies on the `any` default for the path parameter."
+    },
+    {
+      "severity": "low",
+      "file": "src/helper/factory/index.ts",
+      "line": 286,
+      "category": "api-contract",
+      "rationale": "The default type parameter for `Factory` class changed from `E extends Env = any` to `E extends Env = Env`. This is a more restrictive default. Code that previously relied on `any` behavior for the Env parameter might now fail type checking.",
+      "suggestedCheck": "Verify that no existing code instantiates `Factory` without explicit type parameters and relies on the `any` default for the Env parameter."
+    }
+  ],
+  "risk": "Low",
+  "modelRiskScore": 0.05,
+  "derivedRiskScore": 0.0975,
+  "meta": {
+    "mode": "baseline-plus",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 3,
+    "outputTokens": 419,
+    "costUsd": 0.016868,
+    "wallMs": 5275,
+    "toolCalls": 0
+  }
+}

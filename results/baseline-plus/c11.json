@@ -1,0 +1,83 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3888,
+    "title": "feat(router): support greedy matches with subsequent static components.",
+    "baseSha": "438983b3bb3d459bf9d9d2e5adf1d21a7e6588d8",
+    "headSha": "5f41ceeb32fe23e34a4a5f3f25e4b4b155bcf457",
+    "filesChanged": 6,
+    "additions": 138,
+    "deletions": 29
+  },
+  "summary": "This PR adds support for greedy regex pattern matching with subsequent static path components in the router. It modifies pattern matching logic in TrieRouter and LinearRouter to use lookahead assertions when a greedy pattern is followed by a static component, and introduces a queue-based mechanism to defer matching of nodes that follow greedy captures. The feature is well-tested but has some edge cases and implementation concerns.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/router/trie-router/node.ts",
+      "line": 180,
+      "category": "unhandled-edge-case",
+      "rationale": "The code counts slashes in the matched greedy pattern to determine queue depth: `const componentCount = m[0].match(/\\//)?.length ?? 0`. This assumes the matched string contains only forward slashes as path separators. If a parameter value itself contains encoded slashes or other edge cases, this count could be incorrect, causing nodes to be queued at the wrong depth and potentially matching wrong paths.",
+      "suggestedCheck": "Verify that parameter values cannot contain unencoded slashes, or add explicit validation/escaping. Test with URL-encoded slashes in parameter values."
+    },
+    {
+      "severity": "medium",
+      "file": "src/utils/url.ts",
+      "line": 62,
+      "category": "api-contract",
+      "rationale": "The `getPattern` function signature changed to accept an optional `next` parameter, and the cache key now includes `next` (e.g., `${label}#${next}`). This changes the return value's first element from the original label to a cache key when `next` is provided (e.g., `:id{[0-9]+}#next` instead of `:id{[0-9]+}`). Callers that depend on the first element being the original label string may break.",
+      "suggestedCheck": "Search codebase for all uses of `getPattern()[0]` to ensure they handle the new cache-key format correctly. Verify that the first element is only used for caching/comparison, not for user-facing output."
+    },
+    {
+      "severity": "medium",
+      "file": "src/router/trie-router/node.ts",
+      "line": 48,
+      "category": "other",
+      "rationale": "The `key` variable is computed as `Array.isArray(pattern) ? pattern[0] : p`, but `pattern[0]` can now be a cache key like `:id{[0-9]+}#next` instead of the original label. This means different routes with the same label but different next components will have different keys in `#children`, potentially creating duplicate nodes for the same logical parameter.",
+      "suggestedCheck": "Verify that routes like `/:id{[0-9]+}/a` and `/:id{[0-9]+}/b` don't create separate child nodes for `:id{[0-9]+}`. Test that parameter extraction still works correctly when the same greedy pattern is used with different subsequent components."
+    },
+    {
+      "severity": "medium",
+      "file": "src/router/trie-router/node.ts",
+      "line": 206,
+      "category": "unhandled-edge-case",
+      "rationale": "The queue mechanism uses `curNodesQueue.shift()` to pop from the front, but nodes are pushed at index `componentCount`. If `componentCount` is large and multiple greedy patterns match at different depths, the queue array could become sparse or the shift/push logic could cause nodes to be processed out of order or skipped entirely.",
+      "suggestedCheck": "Test with deeply nested paths and multiple greedy patterns at different levels (e.g., `/:a{.+}/x/:b{.+}/y/:c{.+}/z`). Verify that all matching handlers are found and in the correct order."
+    },
+    {
+      "severity": "low",
+      "file": "src/router/reg-exp-router/router.test.ts",
+      "line": 15,
+      "category": "test-gap",
+      "rationale": "Two test cases for 'Capture complex multiple directories' are skipped for RegExpRouter with reason 'UnsupportedPath'. This suggests the feature doesn't work with RegExpRouter, but there's no explanation of why or whether this is a known limitation that should be documented.",
+      "suggestedCheck": "Add a comment explaining why these tests are unsupported for RegExpRouter, or consider implementing support if feasible. Document this limitation in the router's JSDoc."
+    },
+    {
+      "severity": "low",
+      "file": "src/router/linear-router/router.ts",
+      "line": 90,
+      "category": "other",
+      "rationale": "The lookahead logic checks `next[1] !== ':' && next[1] !== '*'` to determine if a lookahead is needed. This assumes `next` is a string with at least 2 characters. If `next` is a single character or empty, this could cause an error or unexpected behavior.",
+      "suggestedCheck": "Verify that `next` is always a valid path component with at least 2 characters when it's not null/undefined. Add defensive checks if needed."
+    },
+    {
+      "severity": "low",
+      "file": "src/utils/url.ts",
+      "line": 66,
+      "category": "other",
+      "rationale": "The lookahead pattern is constructed as `^${match[2]}(?=/${next})`, which assumes `next` is a literal string that doesn't need regex escaping. If `next` contains regex special characters (e.g., `.`, `*`, `+`), the lookahead will not work as intended.",
+      "suggestedCheck": "Test with path components containing regex special characters (e.g., `/:id{[0-9]+}/file.txt` where `file.txt` contains a dot). Consider escaping `next` before inserting it into the regex."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.28,
+  "derivedRiskScore": 0.7287,
+  "meta": {
+    "mode": "baseline-plus",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 3,
+    "outputTokens": 1464,
+    "costUsd": 0.0408405,
+    "wallMs": 15784,
+    "toolCalls": 0
+  }
+}

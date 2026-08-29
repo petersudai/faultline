@@ -1,0 +1,35 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3888,
+    "title": "feat(router): support greedy matches with subsequent static components.",
+    "baseSha": "438983b3bb3d459bf9d9d2e5adf1d21a7e6588d8",
+    "headSha": "5f41ceeb32fe23e34a4a5f3f25e4b4b155bcf457",
+    "filesChanged": 6,
+    "additions": 138,
+    "deletions": 29
+  },
+  "summary": "This PR adds support for greedy route parameters with subsequent static components (e.g., `/:dirs{.+}/file.html`). The implementation uses lookahead assertions in regex patterns and a queue-based search mechanism. The changes are well-tested, but there is a potential cache key collision issue in getPattern() when the `next` parameter varies.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/utils/url.ts",
+      "line": 62,
+      "category": "unhandled-edge-case",
+      "rationale": "The cache key uses `${label}#${next}` which becomes `label#undefined` when next is undefined. This could cause cache collisions if the same pattern is used in different contexts (with and without a next component). The cache should distinguish between these cases more robustly.",
+      "suggestedCheck": "Verify that patterns registered in different route contexts (with/without subsequent static components) don't incorrectly share cached regex patterns. Test a scenario like registering both `/:id{[0-9]+}` and `/:id{[0-9]+}/details` in the same router."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.25,
+  "derivedRiskScore": 0.25,
+  "meta": {
+    "mode": "abl-4-verify",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 2127,
+    "outputTokens": 2478,
+    "costUsd": 0.029981849999999997,
+    "wallMs": 33243,
+    "toolCalls": 11
+  }
+}

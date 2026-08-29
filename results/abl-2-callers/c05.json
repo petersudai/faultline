@@ -1,0 +1,51 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 1560,
+    "title": "feat(app): `basePath` option for the constructor, deprecate `app.basePath()`",
+    "baseSha": "0e77991429d1eb820db9a95f582bd41e77067691",
+    "headSha": "3767c5374395f1893bf997bb379763fd52f80952",
+    "filesChanged": 9,
+    "additions": 126,
+    "deletions": 85
+  },
+  "summary": "This PR adds a `basePath` constructor option to Hono and deprecates the `app.basePath()` method. The main risk is that the `clone()` method does not preserve the current instance's `#basePath` when creating a cloned instance, which could cause incorrect path merging in nested route scenarios.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "src/hono-base.ts",
+      "line": 138,
+      "category": "unhandled-edge-case",
+      "rationale": "The `clone()` method does not preserve the current instance's `#basePath` when creating a cloned instance. When `clone()` is called, it creates a new Hono with only `router` and `getPath` passed, causing the cloned instance to have `#basePath = '/'` by default. While the calling code in `route()` and `basePath()` immediately overwrites this with the merged path, this creates a window where the clone has an incorrect basePath. More critically, if the clone's basePath is not immediately overwritten (e.g., in future code paths or edge cases), routes added to the clone before the basePath is set will use the wrong prefix.",
+      "suggestedCheck": "Verify that `clone()` should pass the current instance's `#basePath` to the constructor: `const clone = new Hono<E, S, BasePath>({ router: this.router, getPath: this.getPath, basePath: this.#basePath })`. Test nested route scenarios with multiple levels of `route()` calls to ensure paths are correctly merged."
+    },
+    {
+      "severity": "medium",
+      "file": "src/hono-base.ts",
+      "line": 159,
+      "category": "api-contract",
+      "rationale": "The `route()` method implementation changed from calling `this.basePath(path)` (which is now deprecated) to directly cloning and setting basePath inline. While functionally equivalent, this bypasses the deprecated method and may mask issues if the deprecated method had side effects or validation logic that should still apply.",
+      "suggestedCheck": "Confirm that the inline implementation of `route()` (lines 159-160) is functionally identical to the old implementation that called `this.basePath(path)`. Verify no validation or side effects were lost in the refactoring."
+    },
+    {
+      "severity": "medium",
+      "file": "src/hono-base.ts",
+      "line": 79,
+      "category": "unhandled-edge-case",
+      "rationale": "The `#basePath` field is declared without initialization (`#basePath: string`). While it is always set in the constructor before use, TypeScript's strict mode may flag this as potentially uninitialized. More importantly, if the constructor logic changes or if `#basePath` is accessed before the constructor completes, this could cause runtime errors.",
+      "suggestedCheck": "Initialize `#basePath` with a default value: `#basePath: string = '/'` to match the old `private _basePath: string = '/'` behavior and ensure the field is always in a valid state."
+    }
+  ],
+  "risk": "High",
+  "modelRiskScore": 0.65,
+  "derivedRiskScore": 0.7469,
+  "meta": {
+    "mode": "abl-2-callers",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 2131,
+    "outputTokens": 4937,
+    "costUsd": 0.06940089999999999,
+    "wallMs": 59247,
+    "toolCalls": 6
+  }
+}

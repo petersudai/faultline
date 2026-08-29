@@ -10,7 +10,7 @@ import type { PrMetadata, ChangedFile } from "../github/client.js";
 import type { RepoContext } from "../repo/tools.js";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { buildToolkit, ALL_TOOLS, type ToolName } from "./toolDefs.js";
+import { buildToolkit, ALL_TOOLS, SUBMIT_TOOL, type ToolName } from "./toolDefs.js";
 import { z } from "zod";
 import {
   INVESTIGATOR_SYSTEM,
@@ -132,64 +132,78 @@ export async function runAgent(
 
   log.step({ kind: "phase", label: "investigate-start", meta: { maxSteps, tools: toolNames } });
 
+  const specs = [...toolkit.specs, SUBMIT_TOOL];
   let toolCalls = 0;
   let draft: { summary: string; findings: Finding[]; riskScore: number } | null =
     null;
 
-  for (let step = 0; step < maxSteps + 1; step++) {
+  for (let step = 0; step <= maxSteps + 1 && !draft; step++) {
+    const forced = step > maxSteps;
     const res = await deps.llm.call({
       system: INVESTIGATOR_SYSTEM,
-      messages,
-      tools: toolkit.specs,
+      messages: forced
+        ? [
+            ...messages,
+            {
+              role: "user",
+              content:
+                "Step budget reached. Call submit_review now with your assessment based on what you have.",
+            },
+          ]
+        : messages,
+      tools: specs,
       maxTokens: 3500,
     });
     log.step({
       kind: "llm",
-      label: `investigate-${step}`,
+      label: `investigate-${step}${forced ? "-forced" : ""}`,
       output: { text: res.text, toolUses: res.toolUses, stopReason: res.stopReason },
       meta: { inputTokens: res.inputTokens, outputTokens: res.outputTokens },
     });
 
-    if (res.toolUses.length === 0) {
+    const submit = res.toolUses.find((t) => t.name === "submit_review");
+    if (submit) {
       try {
-        draft = parseWith(ModelReview, res.text);
+        draft = parseWith(ModelReview, JSON.stringify(submit.input));
         break;
       } catch (e) {
-        if (step >= maxSteps) throw e;
-        messages.push({ role: "assistant", content: assistantContent(res.text, []) });
+        if (forced) {
+          // last resort: try to salvage from any text, else give up cleanly
+          draft = parseWith(ModelReview, res.text);
+          break;
+        }
+        messages.push({ role: "assistant", content: assistantContent(res.text, res.toolUses) });
         messages.push({
           role: "user",
-          content:
-            "That was not valid JSON in the required shape. Output ONLY the JSON object now.",
+          content: [
+            {
+              type: "tool_result" as const,
+              tool_use_id: submit.id,
+              content: `submit_review input was invalid: ${e instanceof Error ? e.message : e}. Call it again with valid fields.`,
+              is_error: true,
+            },
+          ],
         });
         continue;
       }
     }
 
-    if (step >= maxSteps) {
-      // out of steps — force a final answer without tools
-      messages.push({ role: "assistant", content: assistantContent(res.text, res.toolUses) });
-      messages.push({
-        role: "user",
-        content: res.toolUses.map((tu) => ({
-          type: "tool_result" as const,
-          tool_use_id: tu.id,
-          content: "step budget exhausted — do not call more tools",
-        })),
-      });
-      const final = await deps.llm.call({
-        system: INVESTIGATOR_SYSTEM,
-        messages: [
-          ...messages,
-          { role: "user", content: "Output ONLY the final JSON object now." },
-        ],
-        maxTokens: 3500,
-      });
-      draft = parseWith(ModelReview, final.text);
-      log.step({ kind: "llm", label: "investigate-forced-final", output: { text: final.text } });
-      break;
+    if (res.toolUses.length === 0) {
+      // stopped without submitting — try to read a review from the text, else nudge
+      try {
+        draft = parseWith(ModelReview, res.text);
+        break;
+      } catch {
+        messages.push({ role: "assistant", content: assistantContent(res.text, []) });
+        messages.push({
+          role: "user",
+          content: "Call submit_review with your assessment to finish.",
+        });
+        continue;
+      }
     }
 
+    // ordinary investigative tool calls
     messages.push({ role: "assistant", content: assistantContent(res.text, res.toolUses) });
     const results: Anthropic.ToolResultBlockParam[] = [];
     for (const tu of res.toolUses) {
@@ -210,7 +224,7 @@ export async function runAgent(
     messages.push({ role: "user", content: results });
   }
 
-  if (!draft) throw new Error("agent produced no draft review");
+  if (!draft) throw new Error("agent never submitted a review");
 
   // ---- experiment R: security-specialist second pass ------------------------
   if (deps.secondPass) {

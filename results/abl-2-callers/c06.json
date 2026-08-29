@@ -1,0 +1,26 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 871,
+    "title": "feat: use added app's errorHandler",
+    "baseSha": "c335a9272b6fabab5bb4407f1d1a0ae42a0ff5b5",
+    "headSha": "141cb9d18864912b2fffbfd2f278a1d24b6a4c7d",
+    "filesChanged": 6,
+    "additions": 141,
+    "deletions": 30
+  },
+  "summary": "This PR reorders the parameters of the compose function (swapping onNotFound and onError) and implements logic to apply a sub-app's custom errorHandler to its routes when they are composed into a parent app. The changes are consistent across all call sites and include comprehensive test coverage.",
+  "findings": [],
+  "risk": "Low",
+  "modelRiskScore": 0.05,
+  "derivedRiskScore": 0,
+  "meta": {
+    "mode": "abl-2-callers",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 1957,
+    "outputTokens": 3155,
+    "costUsd": 0.050097699999999995,
+    "wallMs": 40823,
+    "toolCalls": 9
+  }
+}

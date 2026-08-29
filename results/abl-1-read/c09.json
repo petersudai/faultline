@@ -1,0 +1,35 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3885,
+    "title": "fix(helper/adapter): correct `env` type",
+    "baseSha": "65edaf277a2dd3bb47406379904996ffdd3563e5",
+    "headSha": "a0b57dbe45d8aa72c890542ce1f3f73b755c98b4",
+    "filesChanged": 2,
+    "additions": 36,
+    "deletions": 12
+  },
+  "summary": "This PR changes the `env` helper's type signature to use a conditional type on the parameter `c`, attempting to fix type inference issues. However, the conditional type `T extends Record<string, unknown> ? Context : C` creates a type mismatch: when the condition is true, `c` is typed as the base `Context` type, but the return type still references `C['env']` which expects a more specific context type. This could cause type safety issues when accessing `c.env` on line 34.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "src/helper/adapter/index.ts",
+      "line": 16,
+      "category": "api-contract",
+      "rationale": "The conditional type `c: T extends Record<string, unknown> ? Context : C` changes the parameter type based on whether T is provided, but this creates a type mismatch with the return type `T & C['env']`. When the condition is true and `c` is typed as the base `Context`, the actual runtime value may not have the `env` property properly typed to match `C['env']`. This breaks the type contract between parameter and return type.",
+      "suggestedCheck": "Verify that the conditional type correctly handles all three test cases by checking that `c.env` on line 34 is correctly typed in each scenario. Confirm that the base `Context` type always has an `env` property compatible with the return type `T & C['env']`."
+    }
+  ],
+  "risk": "High",
+  "modelRiskScore": 0.65,
+  "derivedRiskScore": 0.55,
+  "meta": {
+    "mode": "abl-1-read",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 4682,
+    "outputTokens": 2340,
+    "costUsd": 0.0302468,
+    "wallMs": 28446,
+    "toolCalls": 6
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 1560,
+    "title": "feat(app): `basePath` option for the constructor, deprecate `app.basePath()`",
+    "baseSha": "0e77991429d1eb820db9a95f582bd41e77067691",
+    "headSha": "3767c5374395f1893bf997bb379763fd52f80952",
+    "filesChanged": 9,
+    "additions": 126,
+    "deletions": 85
+  },
+  "summary": "This PR adds a `basePath` constructor option to Hono and deprecates the `app.basePath()` method. The change refactors the internal `_basePath` field to a private field `#basePath`, updates the constructor signature across all Hono variants, and modifies the `route()` method to directly manipulate `#basePath` instead of calling `basePath()`. Tests are added for the new option.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/hono-base.ts",
+      "line": 138,
+      "category": "unhandled-edge-case",
+      "rationale": "The `clone()` method creates a new Hono instance without passing the `basePath` option. When cloning, the new instance will have `#basePath` set to '/' (the default), not the current instance's `#basePath`. This is then immediately overwritten in `route()` and `basePath()` methods, but if `clone()` is called elsewhere or subclassed, the `#basePath` will be lost.",
+      "suggestedCheck": "Verify that `clone()` is only called from `route()` and `basePath()` methods where `#basePath` is explicitly set afterward. Check if any subclasses or external code might call `clone()` and expect `#basePath` to be preserved."
+    },
+    {
+      "severity": "medium",
+      "file": "src/hono-base.ts",
+      "line": 159,
+      "category": "api-contract",
+      "rationale": "The `route()` method signature changed: it now has an optional second parameter `app?` instead of requiring it. The old overload that accepted only a path (for creating a sub-app) was removed. While the new behavior is backward compatible for the two-argument case, code that relied on the single-argument overload's type signature or documentation may break. The removed overload had a deprecation notice suggesting users use `basePath()` instead, but now `basePath()` itself is deprecated.",
+      "suggestedCheck": "Search the codebase and documentation for any examples or tests using `app.route('/path')` with a single argument. Verify that migration path from old single-argument `route()` to new `basePath` option is clear in migration guides."
+    },
+    {
+      "severity": "low",
+      "file": "src/hono-base.ts",
+      "line": 131,
+      "category": "other",
+      "rationale": "The constructor deletes `options.strict` after reading it (line 132), then calls `Object.assign(this, options)` (line 133). This means `strict` is removed from the options object before assignment, which is intentional but could be confusing. However, since `strict` is not a property meant to be assigned to the instance, this is correct behavior.",
+      "suggestedCheck": "Confirm that no code expects `this.strict` to exist on the Hono instance after construction."
+    },
+    {
+      "severity": "low",
+      "file": "src/hono-base.ts",
+      "line": 263,
+      "category": "performance",
+      "rationale": "The `addRoute()` method now always calls `mergePath(this.#basePath, path)` even when `this.#basePath` is '/'. Previously, there was a check `if (this._basePath)` that skipped the merge when basePath was falsy. The new code always merges, which is slightly less efficient but more consistent. This is a minor performance impact.",
+      "suggestedCheck": "Verify that `mergePath('/', path)` returns `path` unchanged, so the behavior is identical to the old conditional logic."
+    },
+    {
+      "severity": "low",
+      "file": "src/hono.test.ts",
+      "line": 292,
+      "category": "test-gap",
+      "rationale": "The test 'Nested route' was refactored to use the new `basePath` option instead of `app.basePath()`. While new tests were added for the `basePath` option, there are no tests verifying that the deprecated `app.basePath()` method still works correctly in complex nested scenarios (e.g., chaining multiple `basePath()` calls).",
+      "suggestedCheck": "Add tests that verify the deprecated `app.basePath()` method continues to work correctly, especially for chained calls like `app.basePath('/a').basePath('/b')`."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.15,
+  "derivedRiskScore": 0.5177,
+  "meta": {
+    "mode": "baseline-plus",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 3,
+    "outputTokens": 1102,
+    "costUsd": 0.03877425,
+    "wallMs": 13062,
+    "toolCalls": 0
+  }
+}

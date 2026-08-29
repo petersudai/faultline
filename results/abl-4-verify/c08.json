@@ -1,0 +1,26 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3849,
+    "title": "fix(factory): correct the type of `factory.createMiddleware()`",
+    "baseSha": "3fba7a5e7d92cdb69c817dd15702508812305171",
+    "headSha": "dbfe2477ffdcb2eedf372ed32dd50b204aceb903",
+    "filesChanged": 2,
+    "additions": 43,
+    "deletions": 21
+  },
+  "summary": "This PR corrects the generic type defaults for the Factory class and createFactory function (from `any` to `Env` and `string`), and adds an explicit return type annotation to the `createMiddleware` method. These are type-level changes that fix type inference for `factory.createMiddleware()` without explicit type parameters. The changes are well-tested and low-risk.",
+  "findings": [],
+  "risk": "Low",
+  "modelRiskScore": 0.05,
+  "derivedRiskScore": 0,
+  "meta": {
+    "mode": "abl-4-verify",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 7159,
+    "outputTokens": 1800,
+    "costUsd": 0.0305224,
+    "wallMs": 25221,
+    "toolCalls": 9
+  }
+}

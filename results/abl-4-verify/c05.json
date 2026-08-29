@@ -1,0 +1,26 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 1560,
+    "title": "feat(app): basePath option for the constructor, deprecate app.basePath()",
+    "baseSha": "0e77991429d1eb820db9a95f582bd41e77067691",
+    "headSha": "3767c5374395f1893bf997bb379763fd52f80952",
+    "filesChanged": 0,
+    "additions": 0,
+    "deletions": 0
+  },
+  "summary": "[review failed: No parseable JSON object found in model response]",
+  "findings": [],
+  "risk": "Low",
+  "modelRiskScore": 0.5,
+  "derivedRiskScore": 0,
+  "meta": {
+    "mode": "abl-4-verify",
+    "model": "error",
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "costUsd": 0,
+    "wallMs": 0,
+    "toolCalls": 0
+  }
+}

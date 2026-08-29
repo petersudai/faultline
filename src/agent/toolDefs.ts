@@ -89,6 +89,66 @@ const SPECS: Record<ToolName, ToolSpec> = {
   },
 };
 
+/**
+ * Terminator tool. The agent ends the review by calling this with its
+ * assessment as structured input — far more reliable than asking a small model
+ * to emit a bare JSON object as its final text.
+ */
+export const SUBMIT_TOOL: ToolSpec = {
+  name: "submit_review",
+  description:
+    "Call this exactly once, on its own, to finish. Provide your final assessment. Do not call any other tool in the same turn.",
+  input_schema: {
+    type: "object",
+    properties: {
+      summary: {
+        type: "string",
+        description:
+          "2-3 sentences: what the PR changes and the single biggest risk, or that it looks low-risk",
+      },
+      riskScore: {
+        type: "number",
+        description:
+          "0..1 — your probability that this PR needs a revert or hotfix within two weeks",
+      },
+      findings: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            severity: { type: "string", enum: ["high", "medium", "low"] },
+            file: { type: "string", description: "path from the diff or repo" },
+            line: {
+              type: "integer",
+              description: "line in the new file; omit if unsure",
+            },
+            category: {
+              type: "string",
+              enum: [
+                "missing-caller-update",
+                "unhandled-edge-case",
+                "breaking-change",
+                "test-gap",
+                "error-handling",
+                "concurrency",
+                "security",
+                "performance",
+                "data-loss",
+                "api-contract",
+                "other",
+              ],
+            },
+            rationale: { type: "string" },
+            suggestedCheck: { type: "string" },
+          },
+          required: ["severity", "file", "category", "rationale", "suggestedCheck"],
+        },
+      },
+    },
+    required: ["summary", "riskScore", "findings"],
+  },
+};
+
 export interface ToolKit {
   specs: ToolSpec[];
   dispatch: (name: string, input: unknown) => Promise<unknown>;
