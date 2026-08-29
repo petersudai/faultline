@@ -1,6 +1,5 @@
-import { execFileSync } from "node:child_process";
-import { execSync } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
+import { execFileSync, execSync } from "node:child_process";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 const REPOS_DIR = join(process.cwd(), ".cache", "repos");
@@ -20,25 +19,46 @@ function git(cwd: string, args: string[]): string {
   });
 }
 
-function gitRetry(cwd: string, args: string[], tries = 3): void {
+function tryGit(cwd: string, args: string[]): boolean {
+  try {
+    git(cwd, args);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function hasCommit(dir: string, sha: string): boolean {
+  return existsSync(join(dir, ".git")) && tryGit(dir, ["cat-file", "-e", `${sha}^{commit}`]);
+}
+
+function sleep(sec: number): void {
+  try {
+    execSync(process.platform === "win32" ? `ping -n ${sec + 1} 127.0.0.1 >NUL` : `sleep ${sec}`, {
+      stdio: "ignore",
+      windowsHide: true,
+    });
+  } catch {
+    /* best effort */
+  }
+}
+
+function fetchWithRetry(dir: string, sha: string, tries = 3): void {
   let lastErr: unknown;
   for (let i = 0; i < tries; i++) {
     try {
-      git(cwd, args);
+      git(dir, ["fetch", "-q", "--depth", "1", "origin", sha]);
       return;
     } catch (e) {
       lastErr = e;
-      // crude sync backoff — network hiccup / unauth rate-limit
-      try {
-        execSync(process.platform === "win32" ? "timeout /t 3 /nobreak >nul" : "sleep 3", {
-          stdio: "ignore",
-        });
-      } catch {
-        /* ignore */
-      }
+      if (i < tries - 1) sleep(3);
     }
   }
-  throw lastErr;
+  throw new Error(
+    `git fetch of ${sha.slice(0, 10)} failed after ${tries} tries: ${
+      (lastErr as { stderr?: string })?.stderr || (lastErr as Error)?.message
+    }`,
+  );
 }
 
 /**
@@ -47,7 +67,8 @@ function gitRetry(cwd: string, args: string[], tries = 3): void {
  * fetched too so `git show <headSha>:<path>` works.
  *
  * Pass `token` (a GitHub PAT, even scopeless) to authenticate the clone — it
- * lifts the fetch rate limit from ~60/hr to 5000/hr. Idempotent.
+ * lifts the fetch rate limit from ~60/hr to 5000/hr. Idempotent, and it
+ * repairs a directory left half-initialised by a previous failed run.
  */
 export function ensureCheckout(
   owner: string,
@@ -57,32 +78,23 @@ export function ensureCheckout(
   token?: string,
 ): Checkout {
   const dir = join(REPOS_DIR, `${owner}-${repo}@${baseSha}`);
-  const url = token
-    ? `https://x-access-token:${token}@github.com/${owner}/${repo}.git`
-    : `https://github.com/${owner}/${repo}.git`;
+  const url =
+    token && token.trim()
+      ? `https://x-access-token:${token.trim()}@github.com/${owner}/${repo}.git`
+      : `https://github.com/${owner}/${repo}.git`;
 
-  const fetchSha = (sha: string) => {
-    try {
-      gitRetry(dir, ["fetch", "-q", "--depth", "1", "origin", sha]);
-    } catch {
-      gitRetry(dir, ["fetch", "-q", "--depth", "100", "origin"]);
-    }
-  };
-
-  if (!existsSync(join(dir, ".git"))) {
+  if (!hasCommit(dir, baseSha)) {
+    // wipe any half-built dir from a prior failure, start clean
+    if (existsSync(dir)) rmSync(dir, { recursive: true, force: true });
     mkdirSync(dir, { recursive: true });
     git(dir, ["init", "-q"]);
     git(dir, ["remote", "add", "origin", url]);
-    fetchSha(baseSha);
+    fetchWithRetry(dir, baseSha);
     git(dir, ["checkout", "-q", baseSha]);
   }
 
-  if (headSha) {
-    try {
-      git(dir, ["cat-file", "-e", `${headSha}^{commit}`]);
-    } catch {
-      fetchSha(headSha);
-    }
+  if (headSha && !hasCommit(dir, headSha)) {
+    fetchWithRetry(dir, headSha);
   }
 
   return { dir, baseSha, headSha };
