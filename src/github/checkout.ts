@@ -1,8 +1,11 @@
 import { execFileSync, execSync } from "node:child_process";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 
 const REPOS_DIR = join(process.cwd(), ".cache", "repos");
+// keep every git subcommand short-path-safe on Windows
+const LONGPATHS = ["-c", "core.longpaths=true"];
 
 export interface Checkout {
   dir: string;
@@ -11,7 +14,7 @@ export interface Checkout {
 }
 
 function git(cwd: string, args: string[]): string {
-  return execFileSync("git", args, {
+  return execFileSync("git", [...LONGPATHS, ...args], {
     cwd,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
@@ -62,13 +65,14 @@ function fetchWithRetry(dir: string, sha: string, tries = 3): void {
 }
 
 /**
- * Shallow-fetch a PR's base (and head) commits of a public repo into
- * .cache/repos/<owner>-<repo>@<baseSha>. Working tree is at base; head is
- * fetched too so `git show <headSha>:<path>` works.
+ * Shallow-fetch a PR's base (and head) commits of a public repo into a short
+ * path under .cache/repos/. Working tree is at base; head is fetched too so
+ * `git show <headSha>:<path>` works.
  *
- * Pass `token` (a GitHub PAT, even scopeless) to authenticate the clone — it
- * lifts the fetch rate limit from ~60/hr to 5000/hr. Idempotent, and it
- * repairs a directory left half-initialised by a previous failed run.
+ * Pass `token` (a GitHub PAT, even scopeless) to authenticate — it lifts the
+ * fetch rate limit from ~60/hr to 5000/hr. Idempotent, self-heals a directory
+ * left half-built by a previous failed run, and stays inside Windows MAX_PATH
+ * via short dir names + core.longpaths.
  */
 export function ensureCheckout(
   owner: string,
@@ -77,14 +81,17 @@ export function ensureCheckout(
   headSha?: string,
   token?: string,
 ): Checkout {
-  const dir = join(REPOS_DIR, `${owner}-${repo}@${baseSha}`);
+  const slug =
+    repo.slice(0, 12) +
+    "-" +
+    createHash("sha1").update(`${owner}/${repo}@${baseSha}`).digest("hex").slice(0, 10);
+  const dir = join(REPOS_DIR, slug);
   const url =
     token && token.trim()
       ? `https://x-access-token:${token.trim()}@github.com/${owner}/${repo}.git`
       : `https://github.com/${owner}/${repo}.git`;
 
   if (!hasCommit(dir, baseSha)) {
-    // wipe any half-built dir from a prior failure, start clean
     if (existsSync(dir)) rmSync(dir, { recursive: true, force: true });
     mkdirSync(dir, { recursive: true });
     git(dir, ["init", "-q"]);
