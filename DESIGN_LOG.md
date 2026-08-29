@@ -495,6 +495,26 @@ localisation and the audit trail; the accuracy comes from the second pass.
 
 ---
 
+## D19 — Fresh-clone reproduction check
+
+Cloned the pushed repo to a clean directory and ran the judge path:
+
+- `npm ci` → ok
+- `npm test` → 24/24
+- `npm run preflight` → 12/12 ready *(after a fix: preflight was calling the
+  full `loadConfig`, which required `ANTHROPIC_API_KEY` even though preflight
+  makes no API calls — now `needAnthropic: false`)*
+- `npm run eval -- --mode baseline --offline` → **strict 66.7%, triage 66.7%,
+  recall 33.3%, root-cause 6/6, $0.08** — identical to the committed
+  `results/baseline.json` to the digit (the baseline is a single temp-0 call, so
+  it reproduces exactly; the agent's run-to-run range is documented in D18).
+
+`npm run eval:all` also runs the agent step from a clean clone (~12 min, ~$0.5);
+skipped re-verifying end-to-end since the agent config had already been run
+several times. Repo: `github.com/petersudai/faultline` (private until submission).
+
+---
+
 ## Metrics glossary (for the video and methodology guide)
 
 | Metric | Meaning | Why it's the right one |
