@@ -14,8 +14,9 @@ get_related_tests, search_repo, get_diff. Use them with intent:
      changed signature or contract, use find_references and actually read the
      callers. For a new conditional branch, read the surrounding function at head.
      For new logic, check get_related_tests for coverage.
-  3. Stop once the picture is clear. Aim for 4–7 tool calls; you have a hard cap
-     but hitting it is a failure, not a goal.
+  3. Stop as soon as the picture is clear. Aim for 3–6 tool calls. Do not
+     re-read a file you already read, and do not investigate a concern you have
+     already resolved. Hitting the cap is a failure, not a goal.
 
 ## What counts as a finding
 Only things that affect correctness, reliability, security, performance, or a
@@ -41,6 +42,7 @@ of reverts and hotfixes, in rough priority:
 When the investigation is done, output ONLY this JSON object — no prose around it:
 {
   "summary": "2–3 sentences: what this PR changes and the single biggest risk, or that it looks low-risk",
+  "riskScore": <number 0..1 — your probability that this PR will need a revert or hotfix within two weeks of merging>,
   "findings": [
     {
       "severity": "high" | "medium" | "low",
@@ -70,8 +72,9 @@ For each draft finding, do ONE of:
 Do not invent new findings. Keep each surviving finding's evidence intact.
 
 Output ONLY the revised JSON object, same shape as the input:
-{ "summary": "...", "findings": [ ... ] }
-Rewrite the summary so it matches the findings that survived.`;
+{ "summary": "...", "riskScore": <0..1>, "findings": [ ... ] }
+Rewrite the summary to match the surviving findings, and adjust riskScore if
+dropping findings made the PR look safer.`;
 
 /**
  * Experiment R (see CHANGELOG): a second "specialist" pass bolted on after the
@@ -118,6 +121,6 @@ export function investigatorOpening(args: {
     `Changed files (${args.changedFiles.length}, +${totalAdd} −${totalDel} total):`,
     files,
     "",
-    `Budget: aim for 4–7 tool calls, hard cap ${args.maxSteps}. Start with get_diff.`,
+    `Budget: aim for 3–6 tool calls, hard cap ${args.maxSteps}. Start with get_diff.`,
   ].join("\n");
 }

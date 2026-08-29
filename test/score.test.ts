@@ -115,3 +115,27 @@ test("scoreAll: hard-case tally", () => {
   assert.equal(s.hardTotal, 2);
   assert.equal(s.hardCorrect, 1);
 });
+
+test("scoreAll: Brier score rewards calibrated scores", () => {
+  const confident = [
+    { c: testCase({ id: "r", label: "risky" }), review: review({ risk: "High", modelRiskScore: 1 }) },
+    { c: testCase({ id: "n", label: "clean" }), review: review({ risk: "Low", modelRiskScore: 0 }) },
+  ];
+  const wrong = [
+    { c: testCase({ id: "r", label: "risky" }), review: review({ risk: "High", modelRiskScore: 0 }) },
+    { c: testCase({ id: "n", label: "clean" }), review: review({ risk: "Low", modelRiskScore: 1 }) },
+  ];
+  assert.equal(scoreAll(confident).brierModel, 0);
+  assert.equal(scoreAll(wrong).brierModel, 1);
+});
+
+test("scoreAll: calibration bins report observed revert rate", () => {
+  const pairs = [
+    { c: testCase({ id: "a", label: "risky" }), review: review({ risk: "High", modelRiskScore: 0.9 }) },
+    { c: testCase({ id: "b", label: "clean" }), review: review({ risk: "High", modelRiskScore: 0.9 }) },
+  ];
+  const bin = scoreAll(pairs).calibrationModel.find((b) => b.lo === 0.8);
+  assert.ok(bin);
+  assert.equal(bin!.n, 2);
+  assert.equal(bin!.observedRiskyRate, 0.5); // 1 of 2 in the 0.8+ bin was risky
+});

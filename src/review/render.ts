@@ -75,6 +75,9 @@ export function renderReview(r: Review): string {
   out.push("");
   out.push("---");
   out.push(
+    `risk score: model ${r.modelRiskScore.toFixed(2)} · derived ${r.derivedRiskScore.toFixed(2)}`,
+  );
+  out.push(
     `<sub>faultline · ${r.meta.mode} · ${r.meta.model} · ` +
       `${r.meta.toolCalls} tool calls · ${(r.meta.wallMs / 1000).toFixed(1)}s · ` +
       `$${r.meta.costUsd.toFixed(4)}</sub>`,

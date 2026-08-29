@@ -17,7 +17,9 @@ export function review(p: {
   risk: RiskLevel;
   findings?: Finding[];
   summary?: string;
-  mode?: "baseline" | "agent";
+  mode?: string;
+  modelRiskScore?: number;
+  derivedRiskScore?: number;
 }): Review {
   return {
     pr: {
@@ -33,6 +35,8 @@ export function review(p: {
     summary: p.summary ?? "s",
     findings: p.findings ?? [],
     risk: p.risk,
+    modelRiskScore: p.modelRiskScore ?? (p.risk === "High" ? 0.8 : p.risk === "Medium" ? 0.4 : 0.1),
+    derivedRiskScore: p.derivedRiskScore ?? 0,
     meta: {
       mode: p.mode ?? "agent",
       model: "test",

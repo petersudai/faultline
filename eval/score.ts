@@ -14,12 +14,22 @@ export interface Scored {
   predictedRisk: string;
   predictedHigh: boolean;
   correct: boolean;
+  modelRiskScore: number;
+  derivedRiskScore: number;
   rootCauseHit: boolean | null; // null for clean cases
   rootCauseBorderline: boolean;
   highFindings: number;
   totalFindings: number;
   costUsd: number;
   wallMs: number;
+}
+
+export interface CalibrationBin {
+  lo: number;
+  hi: number;
+  n: number;
+  meanScore: number;
+  observedRiskyRate: number;
 }
 
 export interface Scorecard {
@@ -41,8 +51,36 @@ export interface Scorecard {
   meanWallMs: number;
   hardCorrect: number;
   hardTotal: number;
+  /** mean squared error of the 0–1 risk score vs the 0/1 outcome; lower better */
+  brierModel: number;
+  brierDerived: number;
+  calibrationModel: CalibrationBin[];
   perCase: Scored[];
   manualReview: string[];
+}
+
+function calibrationBins(
+  rows: { score: number; risky: boolean }[],
+  edges = [0, 0.2, 0.4, 0.6, 0.8, 1.0001],
+): CalibrationBin[] {
+  const bins: CalibrationBin[] = [];
+  for (let i = 0; i < edges.length - 1; i++) {
+    const lo = edges[i]!;
+    const hi = edges[i + 1]!;
+    const inBin = rows.filter((r) => r.score >= lo && r.score < hi);
+    bins.push({
+      lo,
+      hi: Math.min(hi, 1),
+      n: inBin.length,
+      meanScore: inBin.length
+        ? inBin.reduce((a, r) => a + r.score, 0) / inBin.length
+        : 0,
+      observedRiskyRate: inBin.length
+        ? inBin.filter((r) => r.risky).length / inBin.length
+        : 0,
+    });
+  }
+  return bins;
 }
 
 const STOP = new Set([
@@ -113,6 +151,8 @@ export function scoreOne(c: Case, review: Review): Scored {
     predictedRisk: review.risk,
     predictedHigh,
     correct: predictedHigh === actualRisky,
+    modelRiskScore: review.modelRiskScore,
+    derivedRiskScore: review.derivedRiskScore,
     rootCauseHit,
     rootCauseBorderline: borderline,
     highFindings,
@@ -147,6 +187,14 @@ export function scoreAll(pairs: { c: Case; review: Review }[]): Scorecard {
 
   const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 
+  const outcome = (s: Scored) => (s.label === "risky" ? 1 : 0);
+  const brier = (pick: (s: Scored) => number) =>
+    n ? sum(perCase.map((s) => (pick(s) - outcome(s)) ** 2)) / n : 0;
+  const calRows = perCase.map((s) => ({
+    score: s.modelRiskScore,
+    risky: s.label === "risky",
+  }));
+
   return {
     n,
     confusion: { tp, fp, tn, fn },
@@ -166,6 +214,9 @@ export function scoreAll(pairs: { c: Case; review: Review }[]): Scorecard {
     meanWallMs: n ? sum(perCase.map((s) => s.wallMs)) / n : 0,
     hardCorrect: hard.filter((s) => s.correct).length,
     hardTotal: hard.length,
+    brierModel: brier((s) => s.modelRiskScore),
+    brierDerived: brier((s) => s.derivedRiskScore),
+    calibrationModel: calibrationBins(calRows),
     perCase,
     manualReview: perCase
       .filter((s) => s.rootCauseBorderline)

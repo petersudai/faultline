@@ -1,9 +1,9 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import type { Scorecard, Scored } from "./score.js";
+import type { Scorecard, Scored, CalibrationBin } from "./score.js";
 
 export interface RunResult {
-  mode: "baseline" | "agent";
+  mode: string;
   model: string;
   fake: boolean;
   timestamp: string;
@@ -12,125 +12,146 @@ export interface RunResult {
 }
 
 const RESULTS_DIR = join(process.cwd(), "results");
+/** display order; anything else is appended alphabetically */
+const MODE_ORDER = ["baseline", "baseline-plus", "agent"];
 
 export function writeRunResult(r: RunResult): void {
   mkdirSync(RESULTS_DIR, { recursive: true });
   writeFileSync(join(RESULTS_DIR, `${r.mode}.json`), JSON.stringify(r, null, 2));
 }
 
-export function readRunResult(mode: "baseline" | "agent"): RunResult | null {
-  const p = join(RESULTS_DIR, `${mode}.json`);
-  return existsSync(p) ? (JSON.parse(readFileSync(p, "utf8")) as RunResult) : null;
+export function readAllResults(): RunResult[] {
+  if (!existsSync(RESULTS_DIR)) return [];
+  const runs = readdirSync(RESULTS_DIR)
+    .filter((f) => f.endsWith(".json"))
+    .map((f) => JSON.parse(readFileSync(join(RESULTS_DIR, f), "utf8")) as RunResult);
+  return runs.sort((a, b) => {
+    const ia = MODE_ORDER.indexOf(a.mode);
+    const ib = MODE_ORDER.indexOf(b.mode);
+    if (ia !== -1 || ib !== -1)
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    return a.mode.localeCompare(b.mode);
+  });
 }
 
 const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
 const usd = (x: number) => `$${x.toFixed(4)}`;
 const secs = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
+const num = (x: number) => x.toFixed(3);
 
-function delta(a: number, b: number, asPct = true): string {
-  const d = b - a;
-  const s = asPct ? `${d >= 0 ? "+" : ""}${(d * 100).toFixed(1)} pp` : `${d >= 0 ? "+" : ""}${d.toFixed(2)}`;
-  return d === 0 ? "—" : s;
+function row(label: string, runs: RunResult[], get: (s: Scorecard) => string): string {
+  return `| ${label} | ${runs.map((r) => get(r.scorecard)).join(" | ")} |`;
 }
 
-function metricRows(base: Scorecard | null, agent: Scorecard | null): string {
-  const cols = (get: (s: Scorecard) => string, d?: string) =>
-    `| ${base ? get(base) : "—"} | ${agent ? get(agent) : "—"} | ${d ?? ""} |`;
-
-  const rows: string[] = [];
-  rows.push(`| **Balanced accuracy** (primary) ` + cols((s) => pct(s.balancedAccuracy), base && agent ? delta(base.balancedAccuracy, agent.balancedAccuracy) : ""));
-  rows.push(`| Recall (risky caught) ` + cols((s) => pct(s.recall), base && agent ? delta(base.recall, agent.recall) : ""));
-  rows.push(`| Specificity (clean passed) ` + cols((s) => pct(s.specificity), base && agent ? delta(base.specificity, agent.specificity) : ""));
-  rows.push(`| Precision ` + cols((s) => pct(s.precision), base && agent ? delta(base.precision, agent.precision) : ""));
-  rows.push(`| F1 ` + cols((s) => pct(s.f1), base && agent ? delta(base.f1, agent.f1) : ""));
-  rows.push(`| Root-cause hit rate (risky) ` + cols((s) => `${s.rootCauseHits}/${s.riskyCount} (${pct(s.rootCauseHitRate)})`, base && agent ? delta(base.rootCauseHitRate, agent.rootCauseHitRate) : ""));
-  rows.push(`| False-alarm rate (high/clean PR) ` + cols((s) => s.falseAlarmRate.toFixed(2), base && agent ? delta(base.falseAlarmRate, agent.falseAlarmRate, false) : ""));
-  rows.push(`| Hard cases correct ` + cols((s) => `${s.hardCorrect}/${s.hardTotal}`));
-  rows.push(`| Mean cost / PR ` + cols((s) => usd(s.meanCostUsd)));
-  rows.push(`| Mean time / PR ` + cols((s) => secs(s.meanWallMs)));
-  return rows.join("\n");
+function metricTable(runs: RunResult[]): string {
+  const head = `| metric | ${runs.map((r) => r.mode).join(" | ")} |`;
+  const sep = `|--------|${runs.map(() => "------").join("|")}|`;
+  const lines = [head, sep];
+  lines.push(row("**Balanced accuracy** (primary)", runs, (s) => pct(s.balancedAccuracy)));
+  lines.push(row("Recall (risky caught)", runs, (s) => pct(s.recall)));
+  lines.push(row("Specificity (clean passed)", runs, (s) => pct(s.specificity)));
+  lines.push(row("Precision", runs, (s) => pct(s.precision)));
+  lines.push(row("F1", runs, (s) => pct(s.f1)));
+  lines.push(row("Root-cause hit rate", runs, (s) => `${s.rootCauseHits}/${s.riskyCount} (${pct(s.rootCauseHitRate)})`));
+  lines.push(row("False-alarm rate (high/clean PR)", runs, (s) => s.falseAlarmRate.toFixed(2)));
+  lines.push(row("Hard cases correct", runs, (s) => `${s.hardCorrect}/${s.hardTotal}`));
+  lines.push(row("Brier — model score", runs, (s) => num(s.brierModel)));
+  lines.push(row("Brier — derived score", runs, (s) => num(s.brierDerived)));
+  lines.push(row("Mean cost / PR", runs, (s) => usd(s.meanCostUsd)));
+  lines.push(row("Mean time / PR", runs, (s) => secs(s.meanWallMs)));
+  return lines.join("\n");
 }
 
 function confusion(s: Scorecard): string {
   const { tp, fp, tn, fn } = s.confusion;
   return [
-    "|              | pred High | pred not-High |",
-    "|--------------|-----------|---------------|",
-    `| **risky**    | ${tp} (TP) | ${fn} (FN) |`,
-    `| **clean**    | ${fp} (FP) | ${tn} (TN) |`,
+    "|            | pred High | pred not-High |",
+    "|------------|-----------|---------------|",
+    `| **risky**  | ${tp} (TP)  | ${fn} (FN) |`,
+    `| **clean**  | ${fp} (FP)  | ${tn} (TN) |`,
   ].join("\n");
 }
 
-function perCaseTable(base: Scorecard | null, agent: Scorecard | null): string {
-  const ids = (agent ?? base)!.perCase.map((c) => c.caseId);
-  const byId = (s: Scorecard | null, id: string): Scored | undefined =>
-    s?.perCase.find((c) => c.caseId === id);
+function calibrationTable(bins: CalibrationBin[]): string {
   const lines = [
-    "| case | label | hard | baseline | agent | root cause |",
-    "|------|-------|------|----------|-------|------------|",
+    "| score range | n | mean score | observed revert rate |",
+    "|-------------|---|-----------|----------------------|",
   ];
-  for (const id of ids) {
-    const b = byId(base, id);
-    const a = byId(agent, id);
-    const mark = (c?: Scored) =>
-      !c ? "—" : `${c.predictedRisk}${c.correct ? " ✓" : " ✗"}`;
-    const rc = a ?? b;
-    const rcTxt =
-      rc?.label === "risky"
-        ? rc.rootCauseHit
-          ? "hit"
-          : rc.rootCauseBorderline
-            ? "borderline"
-            : "miss"
-        : "—";
+  for (const b of bins) {
+    if (b.n === 0) continue;
     lines.push(
-      `| ${id} | ${rc?.label ?? "?"} | ${rc?.hard ? "★" : ""} | ${mark(b)} | ${mark(a)} | ${rcTxt} |`,
+      `| ${b.lo.toFixed(1)}–${b.hi.toFixed(1)} | ${b.n} | ${b.meanScore.toFixed(2)} | ${b.observedRiskyRate.toFixed(2)} |`,
     );
   }
   return lines.join("\n");
 }
 
-export function renderSummary(base: RunResult | null, agent: RunResult | null): string {
-  const out: string[] = [];
-  out.push(`# faultline — evaluation summary`);
-  out.push("");
-  const meta = agent ?? base;
-  if (meta) {
-    out.push(
-      `_${meta.caseIds.length} cases · baseline model ${base?.model ?? "—"} · agent model ${agent?.model ?? "—"}${
-        (base?.fake || agent?.fake) ? " · **FAKE LLM run (plumbing only)**" : ""
-      } · generated ${new Date().toISOString()}_`,
+function perCaseTable(runs: RunResult[]): string {
+  const ids = runs[0]!.scorecard.perCase.map((c) => c.caseId);
+  const byId = (r: RunResult, id: string): Scored | undefined =>
+    r.scorecard.perCase.find((c) => c.caseId === id);
+  const head = `| case | label | hard | ${runs.map((r) => r.mode).join(" | ")} | root cause |`;
+  const sep = `|------|-------|------|${runs.map(() => "----").join("|")}|------------|`;
+  const lines = [head, sep];
+  for (const id of ids) {
+    const anchor = runs.map((r) => byId(r, id)).find(Boolean)!;
+    const cells = runs.map((r) => {
+      const c = byId(r, id);
+      return c ? `${c.predictedRisk}${c.correct ? " ✓" : " ✗"}` : "—";
+    });
+    const rc =
+      anchor.label === "risky"
+        ? runs
+            .map((r) => byId(r, id))
+            .some((c) => c?.rootCauseHit)
+          ? "hit"
+          : runs.map((r) => byId(r, id)).some((c) => c?.rootCauseBorderline)
+            ? "borderline"
+            : "miss"
+        : "—";
+    lines.push(
+      `| ${id} | ${anchor.label} | ${anchor.hard ? "★" : ""} | ${cells.join(" | ")} | ${rc} |`,
     );
   }
+  return lines.join("\n");
+}
+
+export function renderSummary(runs: RunResult[]): string {
+  if (!runs.length) return "# faultline — no results yet\n";
+  const out: string[] = [];
+  out.push("# faultline — evaluation summary");
+  out.push("");
+  const anyFake = runs.some((r) => r.fake);
+  out.push(
+    `_${runs[0]!.caseIds.length} cases · ${runs
+      .map((r) => `${r.mode}=${r.model}`)
+      .join(" · ")}${anyFake ? " · **FAKE LLM run**" : ""} · ${new Date().toISOString()}_`,
+  );
   out.push("");
   out.push("## Headline");
   out.push("");
-  out.push("| metric | baseline | agent | Δ |");
-  out.push("|--------|----------|-------|---|");
-  out.push(metricRows(base?.scorecard ?? null, agent?.scorecard ?? null));
+  out.push(metricTable(runs));
   out.push("");
-  if (base) {
-    out.push("## Confusion — baseline");
+  for (const r of runs) {
+    out.push(`## Confusion — ${r.mode}`);
     out.push("");
-    out.push(confusion(base.scorecard));
-    out.push("");
-  }
-  if (agent) {
-    out.push("## Confusion — agent");
-    out.push("");
-    out.push(confusion(agent.scorecard));
+    out.push(confusion(r.scorecard));
     out.push("");
   }
+  const agent = runs.find((r) => r.mode === "agent") ?? runs[runs.length - 1]!;
+  out.push(`## Calibration — model score (${agent.mode})`);
+  out.push("");
+  out.push(
+    "_A well-calibrated score has observed revert rate ≈ mean score in each row._",
+  );
+  out.push("");
+  out.push(calibrationTable(agent.scorecard.calibrationModel));
+  out.push("");
   out.push("## Per case");
   out.push("");
-  out.push(perCaseTable(base?.scorecard ?? null, agent?.scorecard ?? null));
+  out.push(perCaseTable(runs));
   out.push("");
-  const mr = [
-    ...new Set([
-      ...(base?.scorecard.manualReview ?? []),
-      ...(agent?.scorecard.manualReview ?? []),
-    ]),
-  ];
+  const mr = [...new Set(runs.flatMap((r) => r.scorecard.manualReview))];
   if (mr.length) {
     out.push("## Manual review needed");
     out.push("");
@@ -141,15 +162,12 @@ export function renderSummary(base: RunResult | null, agent: RunResult | null): 
 }
 
 export function regenerateSummary(): string {
-  const base = readRunResult("baseline");
-  const agent = readRunResult("agent");
-  const md = renderSummary(base, agent);
+  const md = renderSummary(readAllResults());
   mkdirSync(RESULTS_DIR, { recursive: true });
   writeFileSync(join(RESULTS_DIR, "summary.md"), md);
   return md;
 }
 
-// `npm run report`
 if (import.meta.url === `file://${process.argv[1]?.replace(/\\/g, "/")}`) {
   console.log(regenerateSummary());
 }

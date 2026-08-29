@@ -21,3 +21,20 @@ export function classifyRisk(findings: Finding[]): RiskLevel {
   if (mediums >= 1) return "Medium";
   return "Low";
 }
+
+const SEVERITY_WEIGHT = { high: 0.55, medium: 0.25, low: 0.05 } as const;
+
+/**
+ * A stable 0–1 risk estimate from the findings alone: the probability that at
+ * least one finding is "real trouble", treating findings as independent.
+ *   1 − ∏(1 − weight(severity))
+ * One high → 0.55; two highs → 0.80; one high + one medium → 0.66; none → 0.
+ * Compared against the model's self-reported score for calibration.
+ */
+export function derivedRiskScore(findings: Finding[]): number {
+  const p = findings.reduce(
+    (acc, f) => acc * (1 - SEVERITY_WEIGHT[f.severity]),
+    1,
+  );
+  return Number((1 - p).toFixed(4));
+}

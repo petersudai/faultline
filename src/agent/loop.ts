@@ -2,7 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { LlmClient } from "../llm/anthropic.js";
 import { parseWith } from "../llm/json.js";
 import { ModelReview, Review, type PrRef, type Finding } from "../review/schema.js";
-import { classifyRisk } from "../review/classify.js";
+import { classifyRisk, derivedRiskScore } from "../review/classify.js";
 import { LIMITS } from "../config.js";
 import { nullLogger, type Logger } from "../logging.js";
 import type { LlmLike, Message } from "../llm/types.js";
@@ -29,6 +29,8 @@ export interface AgentDeps {
   getDiff: (path?: string) => Promise<string>;
   changedFiles: ChangedFile[];
   logger?: Logger;
+  /** recorded in Review.meta.mode (e.g. "agent", "agent-noverify") */
+  mode?: string;
   /** knobs for the changelog experiments */
   tools?: ToolName[];
   maxSteps?: number;
@@ -131,7 +133,8 @@ export async function runAgent(
   log.step({ kind: "phase", label: "investigate-start", meta: { maxSteps, tools: toolNames } });
 
   let toolCalls = 0;
-  let draft: { summary: string; findings: Finding[] } | null = null;
+  let draft: { summary: string; findings: Finding[]; riskScore: number } | null =
+    null;
 
   for (let step = 0; step < maxSteps + 1; step++) {
     const res = await deps.llm.call({
@@ -309,8 +312,10 @@ export async function runAgent(
     summary: verified.summary,
     findings: verified.findings,
     risk,
+    modelRiskScore: verified.riskScore,
+    derivedRiskScore: derivedRiskScore(verified.findings),
     meta: {
-      mode: "agent",
+      mode: deps.mode ?? "agent",
       model: deps.llm.model,
       inputTokens: usage.inputTokens + verifierUsage.inputTokens,
       outputTokens: usage.outputTokens + verifierUsage.outputTokens,

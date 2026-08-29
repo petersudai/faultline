@@ -1,20 +1,21 @@
 import { LlmClient } from "../llm/anthropic.js";
 import { parseWith } from "../llm/json.js";
 import { ModelReview, Review, type PrRef } from "../review/schema.js";
-import { classifyRisk } from "../review/classify.js";
+import { classifyRisk, derivedRiskScore } from "../review/classify.js";
 import { LIMITS } from "../config.js";
 import type { PrMetadata } from "../github/client.js";
 import type { LlmLike } from "../llm/types.js";
 
 /**
- * The BASELINE: one LLM call, title + body + raw diff, nothing else. Same output
- * contract as the agent (ModelReview -> deterministic risk). This is the "one
- * direct prompt with basic instructions" the hackathon brief describes.
+ * The BASELINE. Two variants share this one code path:
+ *   "baseline"      — title + body + raw diff, nothing else
+ *   "baseline-plus" — the above plus the full text of every changed file (head)
+ * Both are a single model call: no tools, no loop, no verify. Same output
+ * contract as the agent, so the only variable is the agentic machinery.
  */
 const SYSTEM = `You are a senior software engineer doing PRE-MERGE RISK TRIAGE.
-You are given a pull request's title, description, and unified diff — nothing else.
-Decide how much careful human attention this PR needs before merging. Most PRs
-are fine; "Low" with no findings is a common, correct result.
+Decide how much careful human attention a pull request needs before merging.
+Most PRs are fine; "Low" with no findings is a common, correct result.
 
 Identify concerns that affect correctness, reliability, security, performance, or
 a consumer of this code — NOT formatting, naming, or style. Top revert causes:
@@ -29,12 +30,13 @@ worth noting, not blocking.
 
 Respond with ONLY a JSON object (no prose, no code fence needed) of the form:
 {
-  "summary": "2-3 sentences on what this PR does",
+  "summary": "2-3 sentences on what this PR changes and the biggest risk",
+  "riskScore": <number 0..1 — your probability that this PR will need a revert or hotfix within two weeks of merging>,
   "findings": [
     {
       "severity": "high" | "medium" | "low",
       "file": "path taken from the diff",
-      "line": <integer line number in the new file, or null>,
+      "line": <integer line number in the new file, or null if unsure>,
       "category": "missing-caller-update" | "unhandled-edge-case" | "breaking-change" | "test-gap" | "error-handling" | "concurrency" | "security" | "performance" | "data-loss" | "api-contract" | "other",
       "rationale": "why this is a concern, grounded in the diff",
       "suggestedCheck": "a concrete thing a human reviewer should verify"
@@ -42,11 +44,16 @@ Respond with ONLY a JSON object (no prose, no code fence needed) of the form:
   ]
 }
 
-Only report concerns you can justify from the diff itself. If nothing is
-concerning, return "findings": [].`;
+Only report concerns you can justify from the evidence given. If nothing is
+concerning, return "findings": [] and a low riskScore.`;
 
 function mustHaveKey(): string {
   throw new Error("runBaseline: provide either `apiKey` or an `llm` instance");
+}
+
+export interface ContextFile {
+  path: string;
+  content: string;
 }
 
 export interface BaselineArgs {
@@ -54,28 +61,30 @@ export interface BaselineArgs {
   diff: string;
   /** intended model id (recorded in meta even when an injected client is used) */
   model: string;
-  /** required unless `llm` is injected */
+  /** "baseline" (default) or "baseline-plus" */
+  mode?: string;
+  /** full changed-file text; when present the mode is recorded as given */
+  contextFiles?: ContextFile[];
   apiKey?: string;
-  /** test double / alternate client */
   llm?: LlmLike;
 }
 
+const PER_FILE_CHARS = 24_000;
+
 export async function runBaseline(args: BaselineArgs): Promise<Review> {
   const started = Date.now();
+  const mode = args.mode ?? "baseline";
   const llm: LlmLike =
     args.llm ??
-    new LlmClient({
-      apiKey: args.apiKey ?? mustHaveKey(),
-      model: args.model,
-    });
+    new LlmClient({ apiKey: args.apiKey ?? mustHaveKey(), model: args.model });
 
-  const diffBudgetChars = LIMITS.maxInlineDiffLines * 200;
+  const diffBudget = LIMITS.maxInlineDiffLines * 220;
   const diff =
-    args.diff.length > diffBudgetChars
-      ? args.diff.slice(0, diffBudgetChars) + "\n… (diff truncated)"
+    args.diff.length > diffBudget
+      ? args.diff.slice(0, diffBudget) + "\n… (diff truncated)"
       : args.diff;
 
-  const user = [
+  const parts = [
     `Repo: ${args.meta.repo}   PR #${args.meta.number}`,
     `Title: ${args.meta.title}`,
     "",
@@ -86,11 +95,26 @@ export async function runBaseline(args: BaselineArgs): Promise<Review> {
     "```diff",
     diff,
     "```",
-  ].join("\n");
+  ];
+
+  if (args.contextFiles?.length) {
+    parts.push("", "Full content of the changed files (post-PR / head):");
+    for (const f of args.contextFiles) {
+      parts.push(
+        "",
+        `--- ${f.path} ---`,
+        "```",
+        f.content.length > PER_FILE_CHARS
+          ? f.content.slice(0, PER_FILE_CHARS) + "\n… (file truncated)"
+          : f.content,
+        "```",
+      );
+    }
+  }
 
   const res = await llm.call({
     system: SYSTEM,
-    messages: [{ role: "user", content: user }],
+    messages: [{ role: "user", content: parts.join("\n") }],
     maxTokens: 3000,
   });
 
@@ -113,8 +137,10 @@ export async function runBaseline(args: BaselineArgs): Promise<Review> {
     summary: model.summary,
     findings: model.findings,
     risk: classifyRisk(model.findings),
+    modelRiskScore: model.riskScore,
+    derivedRiskScore: derivedRiskScore(model.findings),
     meta: {
-      mode: "baseline",
+      mode,
       model: args.model,
       inputTokens: usage.inputTokens,
       outputTokens: usage.outputTokens,

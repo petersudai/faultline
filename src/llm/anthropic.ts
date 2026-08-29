@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { LIMITS, costUsd } from "../config.js";
+import { LIMITS, costUsdDetailed } from "../config.js";
 import type { Message, LlmResult, ToolSpec } from "./types.js";
 
 export class TokenBudgetExceeded extends Error {
@@ -10,31 +10,39 @@ export class TokenBudgetExceeded extends Error {
 }
 
 const RETRYABLE_STATUS = new Set([408, 409, 429, 500, 502, 503, 529]);
+const EPHEMERAL = { type: "ephemeral" as const };
 
 export interface LlmClientOpts {
   apiKey: string;
   model: string;
   budgetTokens?: number;
+  /** disable prompt caching (default: on) */
+  noCache?: boolean;
   onUsage?: (u: { inputTokens: number; outputTokens: number }) => void;
 }
 
 /**
  * Thin wrapper over the Anthropic SDK:
  *  - temperature 0, always
- *  - running token + cost accounting
- *  - a hard token budget that aborts a runaway loop
+ *  - prompt caching on the system prompt, the tools, and a moving breakpoint on
+ *    the last message, so an agent loop re-reads its transcript from cache
+ *  - cache-aware running cost + a hard token budget
  *  - explicit exponential backoff (SDK retries disabled so we own the policy)
  */
 export class LlmClient {
   private readonly client: Anthropic;
   readonly model: string;
   private readonly budget: number;
+  private readonly noCache: boolean;
   private readonly onUsage?: (u: {
     inputTokens: number;
     outputTokens: number;
   }) => void;
+
   private inTok = 0;
   private outTok = 0;
+  private cacheReadTok = 0;
+  private cacheWriteTok = 0;
 
   constructor(opts: LlmClientOpts) {
     this.client = new Anthropic({
@@ -44,15 +52,46 @@ export class LlmClient {
     });
     this.model = opts.model;
     this.budget = opts.budgetTokens ?? LIMITS.runTokenBudget;
+    this.noCache = opts.noCache ?? false;
     this.onUsage = opts.onUsage;
   }
 
-  get usage(): { inputTokens: number; outputTokens: number; costUsd: number } {
+  get usage(): {
+    inputTokens: number;
+    outputTokens: number;
+    cacheReadTokens: number;
+    cacheWriteTokens: number;
+    costUsd: number;
+  } {
     return {
       inputTokens: this.inTok,
       outputTokens: this.outTok,
-      costUsd: costUsd(this.model, this.inTok, this.outTok),
+      cacheReadTokens: this.cacheReadTok,
+      cacheWriteTokens: this.cacheWriteTok,
+      costUsd: costUsdDetailed(this.model, {
+        input: this.inTok,
+        cacheRead: this.cacheReadTok,
+        cacheWrite: this.cacheWriteTok,
+        output: this.outTok,
+      }),
     };
+  }
+
+  /** put a cache breakpoint on the final block of the final message */
+  private withMovingBreakpoint(messages: Message[]): Message[] {
+    if (this.noCache || messages.length === 0) return messages;
+    const copy = messages.slice();
+    const last = copy[copy.length - 1]!;
+    const content =
+      typeof last.content === "string"
+        ? [{ type: "text" as const, text: last.content }]
+        : last.content.slice();
+    const tail = content[content.length - 1];
+    if (tail && typeof tail === "object") {
+      content[content.length - 1] = { ...tail, cache_control: EPHEMERAL } as never;
+    }
+    copy[copy.length - 1] = { ...last, content: content as never };
+    return copy;
   }
 
   async call(params: {
@@ -61,8 +100,23 @@ export class LlmClient {
     tools?: ToolSpec[];
     maxTokens?: number;
   }): Promise<LlmResult> {
-    if (this.inTok + this.outTok > this.budget) {
+    if (this.inTok + this.cacheReadTok + this.cacheWriteTok + this.outTok > this.budget) {
       throw new TokenBudgetExceeded(this.budget);
+    }
+
+    const system = this.noCache
+      ? params.system
+      : [{ type: "text" as const, text: params.system, cache_control: EPHEMERAL }];
+
+    let tools: Anthropic.Tool[] | undefined;
+    if (params.tools?.length) {
+      tools = params.tools.map((t) => ({ ...t })) as Anthropic.Tool[];
+      if (!this.noCache) {
+        tools[tools.length - 1] = {
+          ...tools[tools.length - 1]!,
+          cache_control: EPHEMERAL,
+        };
+      }
     }
 
     const res = await this.withRetry(() =>
@@ -70,19 +124,20 @@ export class LlmClient {
         model: this.model,
         max_tokens: params.maxTokens ?? 2048,
         temperature: 0,
-        system: params.system,
-        messages: params.messages,
-        ...(params.tools && params.tools.length
-          ? { tools: params.tools as Anthropic.Tool[] }
-          : {}),
+        system: system as never,
+        messages: this.withMovingBreakpoint(params.messages),
+        ...(tools ? { tools } : {}),
       }),
     );
 
-    this.inTok += res.usage.input_tokens;
-    this.outTok += res.usage.output_tokens;
+    const u = res.usage;
+    this.inTok += u.input_tokens;
+    this.outTok += u.output_tokens;
+    this.cacheReadTok += u.cache_read_input_tokens ?? 0;
+    this.cacheWriteTok += u.cache_creation_input_tokens ?? 0;
     this.onUsage?.({
-      inputTokens: res.usage.input_tokens,
-      outputTokens: res.usage.output_tokens,
+      inputTokens: u.input_tokens,
+      outputTokens: u.output_tokens,
     });
 
     const text = res.content
@@ -99,8 +154,8 @@ export class LlmClient {
       text,
       toolUses,
       stopReason: res.stop_reason,
-      inputTokens: res.usage.input_tokens,
-      outputTokens: res.usage.output_tokens,
+      inputTokens: u.input_tokens,
+      outputTokens: u.output_tokens,
     };
   }
 

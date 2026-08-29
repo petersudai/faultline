@@ -14,7 +14,7 @@ export const PRICING: Record<string, { in: number; out: number }> = {
 
 export const LIMITS = {
   /** hard cap on tool-use iterations inside one agent review */
-  agentMaxSteps: 14,
+  agentMaxSteps: 8,
   /** per LLM request */
   llmTimeoutMs: 60_000,
   llmMaxRetries: 4,
@@ -76,4 +76,20 @@ export function costUsd(
   const p = PRICING[model];
   if (!p) return 0;
   return (inputTokens * p.in + outputTokens * p.out) / 1_000_000;
+}
+
+/** Cache-aware: cached reads bill at 0.1x input, cache writes at 1.25x. */
+export function costUsdDetailed(
+  model: string,
+  t: { input: number; cacheRead: number; cacheWrite: number; output: number },
+): number {
+  const p = PRICING[model];
+  if (!p) return 0;
+  return (
+    (t.input * p.in +
+      t.cacheRead * p.in * 0.1 +
+      t.cacheWrite * p.in * 1.25 +
+      t.output * p.out) /
+    1_000_000
+  );
 }

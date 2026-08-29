@@ -49,7 +49,7 @@ export const PrRef = z.object({
 export type PrRef = z.infer<typeof PrRef>;
 
 export const ReviewMeta = z.object({
-  mode: z.enum(["baseline", "agent"]),
+  mode: z.string(), // "baseline" | "baseline-plus" | "agent" | experiment labels
   model: z.string(),
   inputTokens: z.number().int().nonnegative(),
   outputTokens: z.number().int().nonnegative(),
@@ -63,18 +63,24 @@ export const Review = z.object({
   pr: PrRef,
   summary: z.string().min(1),
   findings: z.array(Finding),
+  /** deterministic label from `findings` (src/review/classify.ts) — primary */
   risk: RiskLevel,
+  /** the model's own P(this PR needs a revert/hotfix), 0–1 — secondary */
+  modelRiskScore: z.number().min(0).max(1),
+  /** fixed formula over `findings`, 0–1 — secondary, more stable */
+  derivedRiskScore: z.number().min(0).max(1),
   meta: ReviewMeta,
 });
 export type Review = z.infer<typeof Review>;
 
 /**
- * What the LLM is asked to produce (summary + findings only). Risk is computed
- * deterministically from findings; meta is filled in by the runner. Keeping this
- * separate stops the model from "voting" on its own risk label.
+ * What the LLM is asked to produce. The High/Med/Low *label* is still computed
+ * from findings (not voted on), but the model does give a probability, which we
+ * score for calibration against what actually got reverted.
  */
 export const ModelReview = z.object({
   summary: z.string().min(1),
   findings: z.array(Finding),
+  riskScore: z.number().min(0).max(1),
 });
 export type ModelReview = z.infer<typeof ModelReview>;
