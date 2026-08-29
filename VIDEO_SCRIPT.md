@@ -1,129 +1,108 @@
 # Video script — faultline (target ≤ 5:00)
 
-Numbers in **{{braces}}** are filled from the final `results/summary.md`. Timings
-are a guide. Voice: plain, fast, no filler. Record the demo run first, then
-narrate over it.
+Voice: plain, fast, no filler. Record the two demo runs first, then narrate over
+them. Every number below is in `results/summary.md` / `CHANGELOG.md`.
 
 ---
 
-## 0:00–0:35 · The problem, and the framing
+## 0:00–0:30 · The problem, and the framing
 
-**[VISUAL]** Title card: `faultline — pre-merge risk triage`. Then a GitHub PR
-list with ~20 open PRs.
+**[VISUAL]** A GitHub PR queue, ~20 open.
 
-**[VO]**
-"Every team with more open pull requests than review time makes the same call:
-which of these do I read carefully, and which do I wave through? Get it wrong and
-a risky change ships, then comes back days later as a revert or a hotfix.
+**[VO]** "Every team with more open pull requests than review time makes the
+same call: which do I read carefully, which do I wave through? Get it wrong and
+a risky change ships, then comes back as a revert.
 
-faultline is a triage step. But it doesn't ask a model 'is this code good' — an
-opinion. It asks: *does this PR look like the ones that actually got reverted* —
-and we check that answer against real revert history."
+faultline is a triage step. It doesn't ask a model 'is this code good' — an
+opinion. It asks whether a PR *looks like the ones that actually got reverted* —
+and every number I'll show is checked against real revert history: twelve merged
+Hono PRs, six later reverted, six that stuck, frozen by commit SHA."
 
-## 0:35–1:15 · The baseline
+## 0:30–1:10 · The baseline
 
-**[VISUAL]** Terminal: `npm run faultline -- honojs/hono 4707` (baseline, no
-`--agent`). It prints a REVIEW.md.
+**[VISUAL]** `npm run faultline -- honojs/hono 4707` (no `--agent`). REVIEW.md prints.
 
-**[VO]**
-"The baseline is one model call: the PR title, description, and diff. Here it is
-on a real hono PR that *was* later reverted. It flags some concerns — but rates
-everything 'Medium'. Across all {{N}} test PRs the baseline's strict accuracy is
-**{{baseline_strict}}%**: it finds issues — root-cause hit rate {{baseline_rc}} —
-but it hedges instead of committing."
+**[VO]** "The baseline is one model call — title, description, diff. On this PR,
+which *was* reverted, it flags concerns but rates everything 'Medium'. Across all
+twelve it scores 67% balanced accuracy. Here's the important part: its
+root-cause hit rate is 6 out of 6. It *finds* every real problem. It just won't
+commit — it hedges to Medium instead of High."
 
-**[VISUAL]** Cut to `baseline-plus` row: "same call, plus the full changed
-files." Point at the number.
-
-**[VO]**
-"Give that same single call the *full* changed files, not just the diff, and it
-jumps to **{{plus_strict}}%**. That's our real bar — a strong model that has
-read the code."
-
-## 1:15–2:45 · One agent run, start to finish
+## 1:10–2:40 · One agent run, start to finish
 
 **[VISUAL]** `npm run faultline -- honojs/hono 4707 --agent`. Let the trajectory
-scroll. Highlight each phase as it happens.
+scroll; keep the base-vs-head `read_file` calls and the second-pass phase legible.
 
-**[VO]**
-"Now the agent on the same PR. It starts with the diff, and sees the PR adds a
-'fast path' to `c.json()` — a new way to do an existing operation. That's the
-shape that gets reverted, so it does a **path comparison**: it reads the old code
-and the new code" — *[VISUAL: the two `read_file` calls]* — "and finds the
-divergence: the new path calls `Response.json()`, which sets
-`Content-Type: application/json; charset=utf-8`; the old path set no charset.
-An observable difference in a public API, with no test covering it.
+**[VO]** "Now the full pipeline on the same PR. It sees the change adds a 'fast
+path' to `c.json()` — a new way to do an existing operation, which is the shape
+that gets reverted. So it does a path comparison: reads the old code and the new
+code" — *[VISUAL: the two read_file calls]* — "and finds it: the new path calls
+`Response.json()`, which sets `Content-Type: application/json; charset=utf-8`;
+the old path set no charset. An observable API difference, no test covering it.
 
-Then a separate **verify** pass re-checks that finding against the diff and keeps
-it. The risk label is not the model's vote — it's a fixed rule over the verified
-findings."
+A verify pass keeps that finding. Then a second reviewer" — *[VISUAL: the
+second-pass phase]* — "challenges it adversarially — 'how bad is this really' —
+and that's what pushes the label from Medium to **High**. The risk level itself
+is a fixed rule over the findings, not the model's vote."
 
-**[VISUAL]** The final `REVIEW.md`: risk badge, the finding at `context.ts:{{line}}`,
-the manual checklist, the calibrated risk score line.
+**[VISUAL]** Final REVIEW.md: High badge, finding at `context.ts:712`, checklist,
+the `risk score: model / derived` line.
 
-**[VO]**
-"Output a maintainer can act on: the risk level, the exact lines, and what to
-check by hand."
+## 2:40–3:40 · What actually moved the numbers
 
-## 2:45–3:45 · What actually moved the numbers
+**[VISUAL]** `CHANGELOG.md` ablation table on screen.
 
-**[VISUAL]** `results/summary.md` headline table, all columns:
-baseline → baseline-plus → abl-1-read → abl-2-callers → abl-3-tests →
-abl-4-verify. Then the same on Sonnet.
+**[VO]** "This is a controlled ablation — same twelve PRs, one capability added
+at a time.
 
-**[VO]**
-"The changelog is a controlled ablation — same {{N}} PRs, same metric, one
-capability added at a time.
+- Feeding the model the full changed files instead of just the diff: no change.
+- The whole investigation loop — reading code, tracing callers, checking tests:
+  **no accuracy gain over the baseline**, five to seven times the cost, and it
+  made root-cause localisation *worse*. Tracing callers was the worst — it
+  pulled the model off the actual change.
+- The one thing that helped was the adversarial second pass. Recall on reverted
+  PRs went from 33% to between 50 and 67%.
 
-- Reading the surrounding code: {{delta_read}}.
-- Tracing callers of a changed symbol: {{delta_callers}}.
-- Test-gap detection: {{delta_tests}}.
-- The verify pass: {{delta_verify}} — mostly **specificity**: it stops the agent
-  crying wolf on clean PRs.
+Between 50 and 67 — because when I re-ran the exact same config, it moved eight
+points. Twelve cases, cheap model: one case *is* eight points. So I report the
+range, not a number I can't defend. More cases and more seeds is the fix I
+didn't have budget for.
 
-The single biggest contributor was **{{biggest}}**.
+One experiment I removed: the second pass *without* the investigation loop —
+50%, back to baseline. The two only work together: the loop gathers the context,
+the critic makes the model act on it."
 
-One experiment we removed: a second 'security specialist' agent merged in after
-the generalist. Result: {{secondpass_result}} — no accuracy gain, more cost and
-latency, because the verify pass already covered that ground. Cut."
+## 3:40–4:25 · The honest finding + hot take
 
-## 3:45–4:30 · The honest finding + hot take
+**[VO]** "So — the model was never short on *information*. The plain baseline
+finds every root cause. It's short on *conviction*: left alone it hedges every
+risky PR to Medium. And more tools made that worse, not better.
 
-**[VISUAL]** Two big numbers side by side: cost/PR baseline-plus vs agent; and
-the specificity + root-cause columns.
+**Hot take: when an agent is under-committing, add a critic, not a crawler.**
 
-**[VO]**
-"Here's what surprised us. A strong model with the full files is *most* of
-triage — {{plus_strict}}% for about {{plus_cost}} per PR. The agent's reliable
-wins are narrower: it never marks a clean PR 'High' — specificity
-{{agent_spec}}% — it localizes the root cause {{agent_rc}}, and it leaves an
-audit trail. It costs about {{cost_multiple}}× more per PR.
+The failure that survives: subtle regressions where the diff *looks* equivalent.
+One reverted PR removed a `navigator === undefined` check on a false premise —
+every configuration, including the final one, calls it safe, because you can't
+see the premise is wrong without running the code in that environment."
 
-**Hot take:** we assumed more agent meant better. For this task, the diff + full
-files was ~90% of the value at ~5% of the cost. Agentic investigation is worth
-it when a wrong 'looks fine' is expensive and you need the *why*, not just the
-verdict — not as a default."
+## 4:25–5:00 · Reproducibility
 
-## 4:30–5:00 · Reproducibility
+**[VISUAL]** Fresh terminal, new directory: `git clone … && npm ci && npm test
+&& npm run eval:all`. Summary table renders.
 
-**[VISUAL]** Fresh terminal, new directory:
-`git clone … && cd faultline && npm ci && npm test && npm run eval:all`.
-The summary table renders with matching numbers.
-
-**[VO]**
-"Everything's here. Twelve PRs frozen by commit SHA, every API response cached
-and committed, deterministic scoring. From a clean clone: install, {{tests}}
-tests pass, and `eval:all` reproduces every number in the report — no GitHub
-token needed. Thanks for watching."
+**[VO]** "All of it reproduces. Twelve PRs frozen by SHA, every API response
+cached and committed, deterministic scoring, 24 unit tests. From a clean clone:
+install, test, and `eval:all` rebuilds every number — no GitHub token needed.
+Thanks for watching."
 
 ---
 
-## Shot list / assets to capture
+## Shot list
 
-- [ ] Baseline run on #4707 (screen record, ~40 s, speed up 2×)
-- [ ] Agent run on #4707 (screen record full trajectory, ~30 s at 2×; keep the
-      two `read_file` calls and the verify phase legible)
-- [ ] `results/summary.md` open in a viewer, scroll the headline table
-- [ ] `CHANGELOG.md` ablation table
-- [ ] Clean-clone reproduction (record `npm ci && npm test && npm run eval:all`)
-- [ ] One still of a real hono revert PR + the "Revert" commit that followed it
+- [ ] `faultline honojs/hono 4707` (baseline) — screen record, ~40 s, 2× speed
+- [ ] `faultline honojs/hono 4707 --agent` — full trajectory; keep base/head
+      read_file + second-pass phase readable
+- [ ] `CHANGELOG.md` ablation table (scroll)
+- [ ] `results/summary.md` headline table
+- [ ] fresh-clone `npm ci && npm test && npm run eval:all`
+- [ ] a still of hono #4707 + the "Revert #4707" PR that followed it
