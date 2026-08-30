@@ -655,6 +655,24 @@ at zero cost, prompt unchanged.
 
 ---
 
+## D22 — Second Sonnet run: a range, not a re-opened verdict
+
+The 1-seed Sonnet probe (D21) returned NO REVERSAL via `probe-verdict.ts`; that
+verdict stands. A second run is being added purely to report a range instead of
+a point — it is a spot-check, not a gate, and does not reopen the verdict.
+Outcomes:
+
+- **(a) run 2 consistent with run 1** → CHANGELOG line becomes "across 2 Sonnet
+  runs, `--deep` did not beat the direct call (strict X–Y, recall Y–Z); a full
+  multi-seed gate is future work."
+- **(b) run 2 favors `--deep`** → CHANGELOG line becomes "one of two Sonnet runs
+  suggested a possible edge for `--deep`; a full pre-registered gate is future
+  work."
+
+Either way: no 3-seed Sonnet gate this cycle.
+
+---
+
 ## Metrics glossary (for the video and methodology guide)
 
 | Metric | Meaning | Why it's the right one |

@@ -5,6 +5,15 @@
 # i.e. is "the loop degrades it" a Haiku-only finding. The adversarial critic
 # stays a removed experiment regardless; probe-sonnet-critic is observational.
 #
+# NOTE (D22): the 1-seed run already returned NO REVERSAL via probe-verdict.ts
+# and that verdict STANDS. A second run of phase 1 is a spot-check to report a
+# range, not a gate — it does not reopen the verdict. Run 2 consistent with
+# run 1 -> CHANGELOG says "across 2 Sonnet runs, --deep did not beat the direct
+# call (strict X-Y, recall Y-Z); a full multi-seed gate is future work". Run 2
+# favouring --deep -> "one of two Sonnet runs suggested a possible edge for
+# --deep; a full pre-registered gate is future work". Either way: no 3-seed
+# Sonnet gate this cycle.
+#
 # REVERSAL thresholds (probe-sonnet-deep minus probe-sonnet-direct):
 #   strict bal. acc  Δ > 1/12       recall  Δ > 1/6       AUC(derived)  Δ > 0.03
 # Outcome (eval/probe-verdict.ts):
