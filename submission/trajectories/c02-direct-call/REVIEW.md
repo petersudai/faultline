@@ -1,0 +1,43 @@
+# Merge Risk: 🔴 HIGH — honojs/hono PR #4198
+_"fix(etag): fallback if `res.clone()` is not supported"_
+
+base `53656e126d` → head `6f22acef36` · 3 files · +44 −11
+
+## Summary
+This PR adds a fallback mechanism for environments (like AWS Lambda) where `Response.clone()` is not supported. When cloning fails, it falls back to reading the response body as an ArrayBuffer and regenerating the ETag. The change is well-tested and handles the edge case gracefully, but there is a critical data-loss risk: calling `res.arrayBuffer()` consumes the response body, and the fallback creates a new Response that may not preserve all original properties.
+
+## Findings (4)
+
+### 🔴 High — src/middleware/etag/index.ts:103 — data-loss
+
+After calling `res.arrayBuffer()` on line 102, the original response body is consumed and cannot be read again. The new Response created on line 103 uses the buffer, but this may not preserve all original response properties (e.g., custom headers, status, statusText set after body was read). More critically, if the original response body was already partially or fully consumed before this middleware runs, `arrayBuffer()` will return an empty buffer, causing the ETag to be computed on empty data and the response body to be lost entirely.
+
+→ Check: Verify that the response body has not been consumed before the etag middleware runs. Consider adding a guard to detect if the body is already consumed (e.g., by checking if `res.bodyUsed` is true) and skip ETag generation in that case, or document this as a limitation. Also verify that the new Response on line 103 correctly preserves all original response properties.
+
+### 🟡 Medium — src/middleware/etag/index.ts:103 — api-contract
+
+The fallback creates a new Response object and assigns it to `c.res`, replacing the original response. This changes the response object identity and may break code that holds a reference to the original response or relies on object equality checks. Additionally, the new Response constructor call `new Response(buffer, res)` uses `res` as the init parameter, which should work, but the semantics differ from the original response object.
+
+→ Check: Confirm that replacing `c.res` with a new Response object does not break downstream middleware or user code that may hold references to the original response. Test with middleware chains where multiple handlers interact with the response object.
+
+### 🟡 Medium — src/middleware/etag/index.ts:97 — error-handling
+
+The catch block silently catches all errors from `res.clone()`, not just the case where clone is unsupported. Other errors (e.g., out-of-memory, network errors) will also trigger the fallback, which may mask real problems and produce incorrect ETags or responses.
+
+→ Check: Consider catching only the specific error type or message that indicates clone is not supported, or add logging to distinguish between clone-not-supported and other errors. This will help with debugging and prevent masking of unexpected failures.
+
+### 🟢 Low — src/middleware/etag/index.test.ts:158 — test-gap
+
+The test mocks clone() to throw an error, but does not verify that the response body is correctly preserved and readable after the middleware runs. The test only checks that the status, ETag, and text are correct, but does not verify that the body was not consumed or lost during the fallback process.
+
+→ Check: Add a test case that verifies the response body is correctly preserved and can be read multiple times (e.g., by calling `res.text()` twice or by checking `res.bodyUsed` before and after).
+
+## Manual checklist
+- [ ] (high) src/middleware/etag/index.ts:103 — Verify that the response body has not been consumed before the etag middleware runs. Consider adding a guard to detect if the body is already consumed (e.g., by checking if `res.bodyUsed` is true) and skip ETag generation in that case, or document this as a limitation. Also verify that the new Response on line 103 correctly preserves all original response properties.
+- [ ] (medium) src/middleware/etag/index.ts:103 — Confirm that replacing `c.res` with a new Response object does not break downstream middleware or user code that may hold references to the original response. Test with middleware chains where multiple handlers interact with the response object.
+- [ ] (medium) src/middleware/etag/index.ts:97 — Consider catching only the specific error type or message that indicates clone is not supported, or add logging to distinguish between clone-not-supported and other errors. This will help with debugging and prevent masking of unexpected failures.
+- [ ] (low) src/middleware/etag/index.test.ts:158 — Add a test case that verifies the response body is correctly preserved and can be read multiple times (e.g., by calling `res.text()` twice or by checking `res.bodyUsed` before and after).
+
+---
+risk score: model 0.65 · derived 0.76
+<sub>faultline · sub-direct · claude-haiku-4-5-20251001 · 0 tool calls · 11.7s · $0.0074</sub>

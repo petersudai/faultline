@@ -1,0 +1,51 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3888,
+    "title": "feat(router): support greedy matches with subsequent static components.",
+    "baseSha": "438983b3bb3d459bf9d9d2e5adf1d21a7e6588d8",
+    "headSha": "5f41ceeb32fe23e34a4a5f3f25e4b4b155bcf457",
+    "filesChanged": 6,
+    "additions": 138,
+    "deletions": 29
+  },
+  "summary": "This PR adds support for greedy route parameters followed by static path components (e.g., `/:dirs{.+}/file.html`). The implementation modifies pattern generation to add lookahead assertions and introduces a queue mechanism in the trie-router to handle multi-segment greedy matches. A critical regex bug in component counting will cause incorrect route matching for greedy patterns spanning multiple path segments.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "src/router/trie-router/node.ts",
+      "line": 180,
+      "category": "unhandled-edge-case",
+      "rationale": "Line 180 uses `/\\//)` regex to count path components: `const componentCount = m[0].match(/\\//)?.length ?? 0`. This searches for double slashes `//`, not single slashes. For a matched string like `foo/bar` (1 single slash), the regex returns null, yielding componentCount=0. The code should count single slashes to determine how many path components were consumed. With componentCount=0, the queued child node processes in the next iteration instead of being deferred correctly, breaking route matching for greedy patterns with multiple segments like `/:dirs{.+}/file.html` matching `/foo/bar/file.html`.",
+      "suggestedCheck": "Verify the regex fix: change `m[0].match(/\\//)?.length ?? 0` to `(m[0].match(/\\//g)?.length ?? 0)`. Confirm that 'GET /foo/bar/file.html' with route '/:dirs{.+}/file.html' correctly extracts 'foo/bar' as the dirs parameter and that the new test cases in common.case.test.ts pass."
+    },
+    {
+      "severity": "medium",
+      "file": "src/router/linear-router/router.ts",
+      "line": 90,
+      "category": "unhandled-edge-case",
+      "rationale": "Line 90 constructs a lookahead: `const lookahead = next && next[1] !== ':' && next[1] !== '*' ? \\`(?=${next})\\` : ''`. The check `next[1]` assumes `next` has length ≥ 2, but `next` could be a single character or empty string, making `next[1]` undefined. More critically, `next` is interpolated directly into the regex pattern without escaping special regex metacharacters (e.g., `.`, `+`, `*`, `[`, `]`). If a route part contains these characters, the lookahead will be malformed or behave unexpectedly.",
+      "suggestedCheck": "Add a length check before accessing `next[1]`: `next?.length > 1 && next[1] !== ':'`. Escape regex metacharacters in `next` before interpolation, or use a safer pattern construction method. Test with route parts containing regex special characters."
+    },
+    {
+      "severity": "medium",
+      "file": "src/utils/url.ts",
+      "line": 65,
+      "category": "unhandled-edge-case",
+      "rationale": "Line 65 constructs a lookahead pattern: `new RegExp(\\`^${match[2]}(?=/${next})\\`)`. Like linear-router, `next` is interpolated without escaping regex metacharacters. If `next` contains characters like `.` or `+`, the lookahead assertion will not match the literal string intended. The cache key at line 62 uses `${label}#${next}`, which could collide or behave unexpectedly if `next` contains `#`.",
+      "suggestedCheck": "Escape `next` before interpolating into the regex pattern. Consider using `next.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')` or a similar escaping function. Verify that routes with special characters in path components work correctly."
+    }
+  ],
+  "risk": "High",
+  "modelRiskScore": 0.75,
+  "derivedRiskScore": 0.7469,
+  "meta": {
+    "mode": "sub-critic",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 2305,
+    "outputTokens": 4831,
+    "costUsd": 0.0764571,
+    "wallMs": 53545,
+    "toolCalls": 8
+  }
+}
