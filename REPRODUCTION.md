@@ -31,15 +31,19 @@ npm test                # unit tests: classifier, scoring (incl. AUC), renderer,
 npm run preflight       # all 12 cases resolve from the committed cache
 ```
 
-## Reproduce the headline comparison
+## Reproduce the headline (~$5–6, ~45 min)
+
+This is all a judge needs.
 
 ```bash
-npm run eval:all        # direct call (offline) + --deep (offline) + report
+npm run eval:all        # direct call (offline) + --deep (offline) + report   (~$0.6, ~9 min)
+bash scripts/gate.sh    # the pre-registered 3-seed critic gate              (~$4, ~35 min)
 ```
 
-Writes `results/baseline.json`, `results/agent.json`, `results/summary.md`,
-per-case reviews under `results/<label>/`, and `--deep` trajectories under
-`trajectories/`.
+`eval:all` writes `results/baseline.json`, `results/agent.json`,
+`results/summary.md`, per-case reviews under `results/<label>/`, and `--deep`
+trajectories under `trajectories/`. `gate.sh` writes `results/gate/*` and
+re-pools `results/{baseline,abl-4-verify,agent}.json`.
 
 **Expected** (claude-haiku-4-5, model default; n=12):
 
@@ -47,21 +51,22 @@ per-case reviews under `results/<label>/`, and `--deep` trajectories under
 |---|---|---|---|---|---|---|
 | direct call (shipped) | 66.7% | 33% | 0.81 | 6/6 | ~1 min | ~$0.07 |
 | `--deep` (loop + verify) | ~56% | ~22% | ~0.57 | 2–3/6 | ~8 min | ~$0.50 |
+| `--deep --second-pass` (critic, removed) | ~67% | ~72% | ~0.69 | 6/6 | ~9 min | ~$0.50 |
 
 The direct call is **deterministic at temp 0** (forced structured output) — it
-reproduces exactly. `--deep` varies run to run by ±1 case; `results/*.json` are
-3-seed pooled aggregates from `scripts/gate.sh`. The removed adversarial-critic
-experiment (`results/agent.json`) is reproduced by `bash scripts/gate.sh` or
-`bash scripts/ablation.sh` (row R).
+reproduces `results/baseline.json` exactly. `--deep` varies run to run by
+±1 case; `results/*.json` for those rows are 3-seed pooled aggregates from
+`scripts/gate.sh`. `gate.sh` prints the pre-registered pass/fail verdict for the
+critic (`eval/gate.ts`) — it fails.
 
-## Reproduce the full ablation
+## Reproduce the rest of the ablation (optional)
 
 ```bash
-bash scripts/ablation.sh            # ~20 min, ~$2 on Haiku (rows 0–5 + the removed critic, row R)
-bash scripts/gate.sh               # the pre-registered 3-seed critic gate (~30–40 min, ~$4)
+bash scripts/ablation.sh   # rows 1–5 (per-tool exploration) + row R; ~20 min, ~$2 on Haiku
 ```
 
-Rebuilds the `CHANGELOG.md` table into `results/summary.md`.
+Rows 2–4 are directional (they predate a reliability fix). Rebuilds the
+`CHANGELOG.md` table into `results/summary.md`.
 
 ## Single PR, live (needs GITHUB_TOKEN)
 
@@ -93,12 +98,14 @@ follow-up after 60+ days.
 ## Environment used for the committed numbers
 
 - Node 22.15, Windows 11, npm 10.9
-- Model: `claude-haiku-4-5-20251001` — every number in `results/` and the docs.
-  `claude-sonnet-5` runs the direct call (forced structured output; spot-checked
-  on the previously-failing cases, not fully evaluated — see CHANGELOG
-  "Cross-model check"). `--deep` on Sonnet is not verified.
+- Model: `claude-haiku-4-5-20251001` is the validated path — every number in
+  `results/` and the docs. `claude-sonnet-5` mostly runs the direct call but
+  still **hard-fails schema validation on ~2/12 cases** (non-deterministic —
+  no temp-0 on `*-5` models); `--deep` on Sonnet ran error-free in a 1-seed
+  probe but is unevaluated. See CHANGELOG "Cross-model check".
 - Prompt caching on; temperature 0 on Haiku. The direct call is deterministic at
   temp 0 (structured tool output) and reproduces the committed
   `results/baseline.json` exactly; `--deep` has ±1 case of run-to-run noise.
-- Total spend to produce every number in `results/`: ~$20 (adds the 3-seed gate
-  and the Sonnet probe over the original ablation).
+- **Headline** (direct call + `--deep` + the 3-seed critic gate): ~$5–6.
+  **Total exploration spend** (all ablation rows, iterations, both Sonnet
+  probes): ~$20.

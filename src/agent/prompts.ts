@@ -83,10 +83,11 @@ dropping findings made the PR look safer.`;
  * Failed the pre-registered gate (scripts/gate.sh, eval/gate.ts; Haiku, 12
  * cases, 3 seeds). It shifts the operating point rather than adding
  * discrimination: recall on reverts 22% -> 72% (mean) but specificity 89% ->
- * 61%, flagging a clean PR High on ~40% of cases, and AUC(modelRiskScore) is
- * not seed-robust (one seed 0.61, below the baseline mean 0.625). Kept in the
- * tree, off by default; opt in with `secondPass` / CLI `--second-pass` to
- * reproduce. The shipped pipeline is investigate -> verify -> classify.
+ * 61%, flagging a clean PR High on ~40% of cases, and its AUC(modelRiskScore)
+ * (0.78 mean, worst seed 0.61) only ties the direct call and never beats it.
+ * Kept in the tree, off by default; opt in with `secondPass` / CLI
+ * `--second-pass` to reproduce. The shipped pipeline is investigate -> verify
+ * -> classify.
  */
 export const SECOND_PASS_SYSTEM = `You are an adversarial reviewer. A generalist has already triaged this PR and
 produced a draft review (summary, findings, riskScore). CHALLENGE that draft and

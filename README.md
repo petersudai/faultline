@@ -52,7 +52,7 @@ but in lockstep flags a clean PR "High" on ~40% of cases (specificity
 seeds, level with the direct call's 0.78 on the mean and its worst seed far
 below. It **failed the pre-registered gate** and is not in the shipped pipeline.
 
-**Hot take:** forcing the one-call baseline to emit its verdict as a structured
+**Hot take:** Forcing the one-call baseline to emit its verdict as a structured
 tool call instead of free-text JSON — same prompt, zero extra cost — improved
 its risk-score separation: derived-score AUC 0.76 → 0.81, triage accuracy
 66.7 → 75%, and it's now deterministic at temp 0. (Of 5 "Medium" hedges it
@@ -61,9 +61,11 @@ risky cases neither config catches — no regression.) If a small model hedges,
 fix the output channel before adding machinery. The machinery didn't earn its
 keep: the investigation loop doesn't beat the direct call, and the adversarial
 critic only trades specificity for recall about one for one (+39 pp / −39 pp)
-while ranking PRs no better on average. A louder critic changes *where* you sit
-on the ROC curve, not *which* curve you're on. See `CHANGELOG.md` for the full
-ablation and `DESIGN_LOG.md` for every decision.
+while ranking PRs no better on average (AUC 0.78, worst seed 0.61, vs the direct
+call's deterministic 0.78). A louder critic changes *where* you sit on the ROC
+curve, not *which* curve you're on.
+
+See `CHANGELOG.md` for the full ablation and `DESIGN_LOG.md` for every decision.
 
 ## `--deep`: the investigation loop (opt-in)
 
