@@ -59,6 +59,12 @@ reproduces `results/baseline.json` exactly. `--deep` varies run to run by
 `scripts/gate.sh`. `gate.sh` prints the pre-registered pass/fail verdict for the
 critic (`eval/gate.ts`) — it fails.
 
+> Derived-score Brier may differ in the 4th decimal (≈0.2606 either way) — LLM
+> output text isn't perfectly deterministic even at temperature 0, so a rare
+> finding-phrasing difference shifts the fixed severity formula by ~0.0001. All
+> rate metrics, both AUCs, model-score Brier, and all 12 risk labels reproduce
+> exactly.
+
 ## Reproduce the rest of the ablation (optional)
 
 ```bash
