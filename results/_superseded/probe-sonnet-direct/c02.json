@@ -1,0 +1,26 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 4198,
+    "title": "fix(etag): fallback if res.clone() is not supported",
+    "baseSha": "53656e126df4855969afa55603cd063343d65552",
+    "headSha": "6f22acef362356c58ce071eaae9decea6ac1d6a4",
+    "filesChanged": 0,
+    "additions": 0,
+    "deletions": 0
+  },
+  "summary": "[review failed: No parseable JSON object found in model response]",
+  "findings": [],
+  "risk": "Low",
+  "modelRiskScore": 0.5,
+  "derivedRiskScore": 0,
+  "meta": {
+    "mode": "probe-sonnet-direct",
+    "model": "error",
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "costUsd": 0,
+    "wallMs": 0,
+    "toolCalls": 0
+  }
+}

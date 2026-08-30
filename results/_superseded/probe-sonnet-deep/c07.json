@@ -1,0 +1,26 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3800,
+    "title": "fix(context): single body overrides other returns",
+    "baseSha": "fa6f51bb1b110cddc7dc41cb7e531fab27fe871f",
+    "headSha": "92a1a129e6e9f430f93e35d217a7bd2a324c85cb",
+    "filesChanged": 3,
+    "additions": 36,
+    "deletions": 11
+  },
+  "summary": "This PR is primarily a TypeScript type-level fix: `BodyRespond`'s overloads now carry a generic status parameter and return `Response & TypedResponse<...,'body'>` instead of a plain `Response`, so `c.body()` no longer widens/overrides the inferred status-code union for other branches' responses (e.g. `c.text()`, `c.json()`) when building a Hono Client's `$get` schema. The runtime implementation of `body()` is unchanged (same `#newResponse` call path with an added `as ReturnType<BodyRespond>` cast), and a type-test plus a minor test-cleanup were added to validate the fix.",
+  "findings": [],
+  "risk": "Low",
+  "modelRiskScore": 0.08,
+  "derivedRiskScore": 0,
+  "meta": {
+    "mode": "probe-sonnet-deep",
+    "model": "claude-sonnet-5",
+    "inputTokens": 12,
+    "outputTokens": 2667,
+    "costUsd": 0.08375189999999999,
+    "wallMs": 34389,
+    "toolCalls": 4
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 4707,
+    "title": "perf(context): add fast path to c.json() matching c.text() optimization",
+    "baseSha": "69f303e0c3a45c09e7ec56611973751208737857",
+    "headSha": "a32bdde71473f1534789d0b11ea0eae710e611f7",
+    "filesChanged": 0,
+    "additions": 0,
+    "deletions": 0
+  },
+  "summary": "[review failed: agent never submitted a review]",
+  "findings": [],
+  "risk": "Low",
+  "modelRiskScore": 0.5,
+  "derivedRiskScore": 0,
+  "meta": {
+    "mode": "probe-sonnet-deep",
+    "model": "error",
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "costUsd": 0,
+    "wallMs": 0,
+    "toolCalls": 0
+  }
+}

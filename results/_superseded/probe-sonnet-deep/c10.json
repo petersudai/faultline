@@ -1,0 +1,35 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3832,
+    "title": "feat(etag): allow for custom hashing methods to be used to etag",
+    "baseSha": "6837649cd104b1886e6cb6653bf26d0700c4c3e6",
+    "headSha": "8fc6cfd20d261e44cb2adacfb0d2d9664f6c80b0",
+    "filesChanged": 3,
+    "additions": 50,
+    "deletions": 9
+  },
+  "summary": "This PR adds an optional generateDigest option to the etag middleware allowing custom hashing algorithms, threading a generator callback through digest.ts; new tests validate SHA-256 usage alongside the existing SHA-1 default. The feature itself is low-risk and additive, but the diff also removes an unrelated `await c.res.blob()` call before replacing the response on the 304 path, which is not explained by the PR's stated purpose and could reintroduce a previously-fixed issue around unconsumed response body streams.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/middleware/etag/index.ts",
+      "line": 86,
+      "category": "other",
+      "rationale": "The PR removes `await c.res.blob() // Force using body` before replacing c.res with a new 304 Response. This is unrelated to the stated feature (custom digest hashing) and its removal means the original response's body stream (distinct from the cloned stream used for digest generation) is never consumed before being discarded. This could reintroduce whatever issue prompted adding the line originally (e.g. unconsumed/undrained ReadableStream causing warnings, leaks, or hung streams in some runtimes like Node/undici), and no test specifically exercises stream consumption on the 304 path.",
+      "suggestedCheck": "Check git history for why `await c.res.blob()` was added, and verify no regression (dangling stream warnings, memory leak, or blocked connection) occurs on the 304 path in Node/Bun/Deno runtimes when the response body is a stream."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.25,
+  "derivedRiskScore": 0.25,
+  "meta": {
+    "mode": "probe-sonnet-deep",
+    "model": "claude-sonnet-5",
+    "inputTokens": 22,
+    "outputTokens": 10208,
+    "costUsd": 0.24120075,
+    "wallMs": 119626,
+    "toolCalls": 9
+  }
+}

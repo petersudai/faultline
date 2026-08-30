@@ -1,0 +1,26 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3833,
+    "title": "fix(compress): don't compress server-sent events",
+    "baseSha": "2a68c594d24c282d0c9f9c286f114acf5019f383",
+    "headSha": "aee7f69dcfc60f379a7830241aa6e82c9db5718f",
+    "filesChanged": 2,
+    "additions": 14,
+    "deletions": 2
+  },
+  "summary": "Small, targeted fix: adds a negative lookahead to COMPRESSIBLE_CONTENT_TYPE_REGEX so `text/event-stream` responses are excluded from compression, preventing SSE streams from being buffered by CompressionStream. A test confirming SSE content-type is not compressed was added. The change is narrow, only affects the regex used to gate compression, and behavior for all other content types is unchanged.",
+  "findings": [],
+  "risk": "Low",
+  "modelRiskScore": 0.05,
+  "derivedRiskScore": 0,
+  "meta": {
+    "mode": "probe-sonnet-deep",
+    "model": "claude-sonnet-5",
+    "inputTokens": 10,
+    "outputTokens": 1283,
+    "costUsd": 0.045442199999999995,
+    "wallMs": 16911,
+    "toolCalls": 3
+  }
+}

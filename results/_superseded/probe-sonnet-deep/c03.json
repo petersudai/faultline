@@ -1,0 +1,35 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3498,
+    "title": "fix(factory): relax Bindings and Variables for `createMiddleware`",
+    "baseSha": "31b4cd414c258db841cce77473615c13fc611d8b",
+    "headSha": "f2e0059be4ac67f910edd2e55c44523486acca21",
+    "filesChanged": 2,
+    "additions": 44,
+    "deletions": 3
+  },
+  "summary": "This PR only changes TypeScript generics/defaults for `createMiddleware` (introducing `E2 extends Env = Simplify<AddAnyToEnv<E>>` to relax Bindings/Variables inference for nested middleware); the runtime implementation (`createFactory<E2, P>().createMiddleware<I>(middleware)`) is unchanged. It's a type-only relaxation intended to stop a previously-thrown type error in a specific nested-middleware scenario, and a test was added exercising that exact scenario. Risk is low: no runtime/behavioral change, but there's a small chance the new default generic could subtly change inferred types for other existing usages of `createMiddleware` where Bindings/Variables were previously inferred strictly and now default to `any` when omitted.",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/helper/factory/index.ts",
+      "line": 247,
+      "category": "other",
+      "rationale": "The new AddAnyToEnv defaulting behavior widens missing Bindings/Variables to `any` rather than `{}`/`unknown`. This is intentional per the PR to relax overly strict type errors, but could mask genuine type errors in code that omits Bindings or Variables and expects them to remain empty objects rather than `any`.",
+      "suggestedCheck": "Confirm existing test suite and any downstream examples/docs that use createMiddleware<{Bindings: X}> without Variables (or vice versa) still get useful type-checking, not silently `any`-typed access."
+    }
+  ],
+  "risk": "Low",
+  "modelRiskScore": 0.1,
+  "derivedRiskScore": 0.05,
+  "meta": {
+    "mode": "probe-sonnet-deep",
+    "model": "claude-sonnet-5",
+    "inputTokens": 14,
+    "outputTokens": 2418,
+    "costUsd": 0.08845439999999999,
+    "wallMs": 28184,
+    "toolCalls": 5
+  }
+}

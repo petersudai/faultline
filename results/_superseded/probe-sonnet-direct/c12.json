@@ -1,0 +1,35 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3833,
+    "title": "fix(compress): don't compress server-sent events",
+    "baseSha": "2a68c594d24c282d0c9f9c286f114acf5019f383",
+    "headSha": "aee7f69dcfc60f379a7830241aa6e82c9db5718f",
+    "filesChanged": 2,
+    "additions": 14,
+    "deletions": 2
+  },
+  "summary": "Excludes `text/event-stream` content-type from the compress middleware's compressible-type regex so SSE responses are no longer buffered/broken by CompressionStream. Change is a small, targeted regex fix with a matching test added; low risk since it only narrows matching (excludes one specific content type) and doesn't alter behavior for other types.",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/utils/compress.ts",
+      "line": 10,
+      "category": "unhandled-edge-case",
+      "rationale": "The negative lookahead only excludes exact 'event-stream' subtype; content types with parameters not immediately followed by ';' or whitespace, or unusual casing/whitespace variants, could theoretically still slip through, though regex is case-insensitive and other subtypes end similarly.",
+      "suggestedCheck": "Manually verify the regex correctly excludes 'text/event-stream; charset=utf-8' and similar variants used by real SSE responses."
+    }
+  ],
+  "risk": "Low",
+  "modelRiskScore": 0.1,
+  "derivedRiskScore": 0.05,
+  "meta": {
+    "mode": "probe-sonnet-direct",
+    "model": "claude-sonnet-5",
+    "inputTokens": 2,
+    "outputTokens": 326,
+    "costUsd": 0.01422975,
+    "wallMs": 4472,
+    "toolCalls": 0
+  }
+}

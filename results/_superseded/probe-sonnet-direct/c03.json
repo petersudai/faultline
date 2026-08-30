@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3498,
+    "title": "fix(factory): relax Bindings and Variables for `createMiddleware`",
+    "baseSha": "31b4cd414c258db841cce77473615c13fc611d8b",
+    "headSha": "f2e0059be4ac67f910edd2e55c44523486acca21",
+    "filesChanged": 2,
+    "additions": 44,
+    "deletions": 3
+  },
+  "summary": "This PR relaxes the type signature of createMiddleware so that Bindings/Variables not explicitly specified default to `any` instead of `{}`, avoiding spurious type errors when composing middleware with partial Env generics. It's a type-only change with no runtime logic modification, but it widens type safety by substituting `any` for missing Bindings/Variables, which could mask legitimate type errors in some codebases.",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/helper/factory/index.ts",
+      "line": 246,
+      "category": "api-contract",
+      "rationale": "Replacing default `{}` with `any` for unspecified Bindings/Variables loosens type checking broadly for all createMiddleware usages, which could suppress genuine type errors for users who rely on strict typing of c.env or c.var in middleware without generics.",
+      "suggestedCheck": "Verify existing test suite and downstream consumers don't rely on strict type errors being thrown for mismatched Bindings/Variables now that they resolve to `any`."
+    },
+    {
+      "severity": "low",
+      "file": "src/helper/factory/index.test.ts",
+      "line": 39,
+      "category": "test-gap",
+      "rationale": "The added test only checks that the code compiles/runs without throwing a TypeScript error; it doesn't verify that intentionally incompatible Bindings/Variables types still produce a type error, so the relaxation's boundary isn't tested.",
+      "suggestedCheck": "Add a compile-time negative test (e.g. using ts-expect-error) confirming that truly incompatible Env types still fail to type-check after this change."
+    }
+  ],
+  "risk": "Low",
+  "modelRiskScore": 0.15,
+  "derivedRiskScore": 0.0975,
+  "meta": {
+    "mode": "probe-sonnet-direct",
+    "model": "claude-sonnet-5",
+    "inputTokens": 2,
+    "outputTokens": 524,
+    "costUsd": 0.0165735,
+    "wallMs": 6946,
+    "toolCalls": 0
+  }
+}

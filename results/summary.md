@@ -1,6 +1,6 @@
 # faultline — evaluation summary
 
-_12 cases · baseline=claude-haiku-4-5-20251001 · baseline-plus=claude-haiku-4-5-20251001 · agent=claude-haiku-4-5-20251001 · abl-1-read=claude-haiku-4-5-20251001 · abl-2-callers=claude-haiku-4-5-20251001 · abl-3-tests=claude-haiku-4-5-20251001 · abl-4-verify=claude-haiku-4-5-20251001 · 2026-08-30T16:55:00.898Z_
+_12 cases · baseline=claude-haiku-4-5-20251001 · baseline-plus=claude-haiku-4-5-20251001 · agent=claude-haiku-4-5-20251001 · abl-1-read=claude-haiku-4-5-20251001 · abl-2-callers=claude-haiku-4-5-20251001 · abl-3-tests=claude-haiku-4-5-20251001 · abl-4-verify=claude-haiku-4-5-20251001 · 2026-08-30T18:26:43.137Z_
 
 ## Headline
 
