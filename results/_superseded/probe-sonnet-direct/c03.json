@@ -9,35 +9,35 @@
     "additions": 44,
     "deletions": 3
   },
-  "summary": "This PR relaxes the type signature of createMiddleware so that Bindings/Variables not explicitly specified default to `any` instead of `{}`, avoiding spurious type errors when composing middleware with partial Env generics. It's a type-only change with no runtime logic modification, but it widens type safety by substituting `any` for missing Bindings/Variables, which could mask legitimate type errors in some codebases.",
+  "summary": "This PR is a type-only fix to createMiddleware's generic signature, relaxing Bindings/Variables inference to avoid false-positive TypeScript errors when composing nested middleware with partial Env types. No runtime behavior changes; risk is limited to potential loosening of type-safety guarantees, which is mitigated by an added test, though the test only confirms compilation success rather than validating negative cases.",
   "findings": [
     {
       "severity": "low",
       "file": "src/helper/factory/index.ts",
-      "line": 246,
+      "line": null,
       "category": "api-contract",
-      "rationale": "Replacing default `{}` with `any` for unspecified Bindings/Variables loosens type checking broadly for all createMiddleware usages, which could suppress genuine type errors for users who rely on strict typing of c.env or c.var in middleware without generics.",
-      "suggestedCheck": "Verify existing test suite and downstream consumers don't rely on strict type errors being thrown for mismatched Bindings/Variables now that they resolve to `any`."
+      "rationale": "The change modifies the generic signature of createMiddleware, replacing E with a derived E2 = Simplify<AddAnyToEnv<E>> that fills undefined Bindings/Variables with `any`. This is a type-only fix (no runtime behavior change) intended to relax overly strict type inference for nested middleware composition. It could subtly change type inference results for existing callers who rely on strict Bindings/Variables typing (e.g. code that expects a type error when Bindings/Variables mismatch will no longer get one), which is a deliberate behavior change but could mask real type errors elsewhere.",
+      "suggestedCheck": "Verify existing test suite and downstream consumers (e.g. hono-based examples/docs) still typecheck correctly, and confirm no legitimate type-safety regressions are introduced by allowing `any` fallback for Bindings/Variables in nested middleware."
     },
     {
       "severity": "low",
       "file": "src/helper/factory/index.test.ts",
-      "line": 39,
+      "line": null,
       "category": "test-gap",
-      "rationale": "The added test only checks that the code compiles/runs without throwing a TypeScript error; it doesn't verify that intentionally incompatible Bindings/Variables types still produce a type error, so the relaxation's boundary isn't tested.",
-      "suggestedCheck": "Add a compile-time negative test (e.g. using ts-expect-error) confirming that truly incompatible Env types still fail to type-check after this change."
+      "rationale": "The added test only checks that TypeScript compiles without error (implicit via ts-check) but does not assert any runtime behavior or negative case (e.g., verifying that genuinely incompatible types still produce an error). This could allow the type relaxation to become overly permissive without detection.",
+      "suggestedCheck": "Add a type-level test (e.g. using tsd or dtslint) to confirm that truly incompatible Env types still fail to compile, ensuring the relaxation doesn't overly loosen type safety."
     }
   ],
   "risk": "Low",
-  "modelRiskScore": 0.15,
+  "modelRiskScore": 0.1,
   "derivedRiskScore": 0.0975,
   "meta": {
     "mode": "probe-sonnet-direct",
     "model": "claude-sonnet-5",
-    "inputTokens": 2,
-    "outputTokens": 524,
-    "costUsd": 0.0165735,
-    "wallMs": 6946,
+    "inputTokens": 18,
+    "outputTokens": 750,
+    "costUsd": 0.0225615,
+    "wallMs": 8776,
     "toolCalls": 0
   }
 }

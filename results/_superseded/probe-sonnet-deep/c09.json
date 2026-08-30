@@ -9,18 +9,18 @@
     "additions": 36,
     "deletions": 12
   },
-  "summary": "This PR is a type-only fix to the `env()` helper's generic signature: it changes the parameter type from `c: C` to `c: T extends Record<string, unknown> ? Context : C`. Since T is always constrained to extend Record<string, unknown>, this always resolves to plain `Context`, relaxing the accepted parameter type while still using `C['env']` for the return type inference from the default. No runtime code paths changed at all — only TypeScript type-checking behavior differs, addressing a documented type-error bug (linked website issue). Tests were updated to cover the three usage patterns (env generic only, Hono generic only, both).",
+  "summary": "This PR only changes the generic type signature of the `env()` helper (adapter helper) to fix TypeScript type inference issues (e.g. env<T>(c) vs env(c) with generic Hono<Env>). The runtime behavior of `env()` (the returned handlers map, globalEnv lookup, etc.) is unchanged — only compile-time typing via a conditional type on the `c` parameter was reworked, and three new type-only test cases (using expectTypeOf) were added covering the three main call patterns.",
   "findings": [],
   "risk": "Low",
-  "modelRiskScore": 0.05,
+  "modelRiskScore": 0.08,
   "derivedRiskScore": 0,
   "meta": {
     "mode": "probe-sonnet-deep",
     "model": "claude-sonnet-5",
     "inputTokens": 10,
-    "outputTokens": 2671,
-    "costUsd": 0.06413895,
-    "wallMs": 34393,
-    "toolCalls": 3
+    "outputTokens": 2780,
+    "costUsd": 0.0661863,
+    "wallMs": 37926,
+    "toolCalls": 4
   }
 }

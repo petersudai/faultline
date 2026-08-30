@@ -9,35 +9,35 @@
     "additions": 36,
     "deletions": 12
   },
-  "summary": "This PR fixes a TypeScript typing issue in the `env` helper so that generics from both the explicit `env<T>()` call and the `Hono<Env>` context are handled correctly without type errors. It's a type-only change with no runtime logic modification, backed by new type-checking tests.",
+  "summary": "This PR is a small, type-only fix to the `env()` helper in `src/helper/adapter/index.ts`, adjusting the generic Context type constraint to fix a TS inference issue reported upstream, plus updated type-level tests. The main risk is that the conditional type change may loosen type-checking of the `c` parameter more broadly than intended, though no runtime behavior changes are involved.</summary>\n</invoke>\n",
   "findings": [
     {
-      "severity": "low",
+      "severity": "medium",
       "file": "src/helper/adapter/index.ts",
-      "line": 18,
+      "line": null,
       "category": "api-contract",
-      "rationale": "The parameter type changed from `c: C` to `c: T extends Record<string, unknown> ? Context : C`, which is a conditional type that always resolves to `Context` since T is constrained to `Record<string, unknown>`, effectively widening the parameter type to plain `Context` and losing some inference precision for callers relying on strict `C` typing.",
-      "suggestedCheck": "Verify that existing callers using `env<T>(c)` with strongly-typed contexts still get correct return type inference (`T & C['env']`) and no regression in downstream consumers relying on the previous behavior."
+      "rationale": "The parameter type `c: T extends Record<string, unknown> ? Context : C` is a conditional type where the check condition (`T extends Record<string, unknown>`) will almost always be true since T already has that constraint by default, meaning `c` is typed as generic `Context` regardless of the explicit `C` generic supplied. This could silently widen/narrow inference in ways not fully covered by the added tests, potentially breaking existing use sites that rely on strict typing of `c` against the inferred `C`.",
+      "suggestedCheck": "Manually verify with a few real-world call sites (env<T>(c) with various c types, and env(c) with no explicit T) that TypeScript still narrows/validates correctly, especially cases where c is a Context with unrelated Bindings that should be a type error."
     },
     {
       "severity": "low",
       "file": "src/helper/adapter/index.test.ts",
       "line": null,
       "category": "test-gap",
-      "rationale": "Tests only check type-level correctness via expectTypeOf and don't verify runtime behavior differences, though this PR is type-only so it's likely sufficient.",
-      "suggestedCheck": "Confirm CI runs type-checking tests (not just runtime tests) to catch regressions in this type-only fix."
+      "rationale": "Tests are type-only (using expectTypeOf and structuring via 'it' blocks with no runtime assertions besides expectTypeOf), and rely on tsc type-checking rather than runtime behavior; there's no test for a mismatched-generic case (e.g., c not matching T) to confirm the type still fails as expected, which is the actual behavior being fixed.",
+      "suggestedCheck": "Add a type test that intentionally introduces a Bindings/env mismatch to confirm TypeScript still reports an error, preserving the original safety guarantee this helper provides."
     }
   ],
-  "risk": "Low",
-  "modelRiskScore": 0.1,
-  "derivedRiskScore": 0.0975,
+  "risk": "Medium",
+  "modelRiskScore": 0.15,
+  "derivedRiskScore": 0.2875,
   "meta": {
     "mode": "probe-sonnet-direct",
     "model": "claude-sonnet-5",
-    "inputTokens": 2,
-    "outputTokens": 494,
-    "costUsd": 0.01410225,
-    "wallMs": 8366,
+    "inputTokens": 18,
+    "outputTokens": 731,
+    "costUsd": 0.016284299999999998,
+    "wallMs": 8934,
     "toolCalls": 0
   }
 }

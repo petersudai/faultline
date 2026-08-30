@@ -5,22 +5,55 @@
     "title": "feat: use added app's errorHandler",
     "baseSha": "c335a9272b6fabab5bb4407f1d1a0ae42a0ff5b5",
     "headSha": "141cb9d18864912b2fffbfd2f278a1d24b6a4c7d",
-    "filesChanged": 0,
-    "additions": 0,
-    "deletions": 0
+    "filesChanged": 6,
+    "additions": 141,
+    "deletions": 30
   },
-  "summary": "[review failed: No parseable JSON object found in model response]",
-  "findings": [],
-  "risk": "Low",
-  "modelRiskScore": 0.5,
-  "derivedRiskScore": 0,
+  "summary": "This PR reorders compose()'s parameters (onError before onNotFound) and adds logic so that when a sub-app is merged into a parent via app.route(), the sub-app's custom errorHandler (but not its custom notFoundHandler) is preserved by wrapping the route handler in a compose call. New tests validate the errorHandler propagation and confirm notFound handling still falls back to the parent's handler, which is expected per the PR's stated scope (errorHandler only, follow-up to notFoundHandler support presumably in #866). The main risk is the parameter reordering in the public compose() function, which is a breaking change for any direct external callers, plus the asymmetry between onError and notFound merge behavior which could surprise users.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/hono.ts",
+      "line": null,
+      "category": "api-contract",
+      "rationale": "compose()'s parameter order was swapped (onError before onNotFound). This is a breaking change to the exported compose function's signature. Any external consumer (middleware libraries, tests, or downstream code) calling compose(middleware, onNotFound, onError) positionally will now silently pass onNotFound as onError and vice versa, causing wrong handler to be invoked with no type error since both are optional parameters of different but structurally similar function types (though TS would catch obvious type mismatches, if both omitted or one omitted it may not fail).",
+      "suggestedCheck": "Confirm compose is not part of the public API used by third-party middleware; if it is exported/documented, add a migration note or keep backward-compatible overload ordering."
+    },
+    {
+      "severity": "medium",
+      "file": "src/hono.ts",
+      "line": null,
+      "category": "unhandled-edge-case",
+      "rationale": "In route(), sub-app handlers are now wrapped with compose([r.handler], app.errorHandler) only when app.errorHandler !== default errorHandler. However, this wrapping does not pass the sub-app's notFoundHandler, so a custom notFound handler set on a mounted sub-app will not be used when merged into the parent (confirmed by the added test '/sub/implicit-404 should be handled by app', which shows sub's custom notFound handler is NOT preserved on merge — only errorHandler is wired, notFoundHandler falls back to parent). This is somewhat expected by design (title says errorHandler only) but could confuse users expecting consistent behavour between onError and notFound customization on sub-apps.",
+      "suggestedCheck": "Verify documentation clarifies that sub.notFound() is not honored when using app.route(), only sub.onError() is, to avoid confusing bug reports."
+    },
+    {
+      "severity": "low",
+      "file": "src/hono.ts",
+      "line": null,
+      "category": "performance",
+      "rationale": "Wrapping each merged route handler in a new compose(...) closure when a custom errorHandler is present adds an extra function call/closure per request compared to directly calling r.handler; negligible but worth noting for very hot routes.",
+      "suggestedCheck": "No action needed unless profiling shows overhead in high-throughput scenarios."
+    },
+    {
+      "severity": "low",
+      "file": "deno_dist/compose.ts",
+      "line": null,
+      "category": "other",
+      "rationale": "deno_dist mirrors src changes (auto-generated), consistent with src/compose.ts and src/hono.ts, so no additional risk beyond what's already noted for src.",
+      "suggestedCheck": "Confirm deno_dist is built/synced automatically from src, not manually maintained, to avoid drift."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.25,
+  "derivedRiskScore": 0.4923,
   "meta": {
     "mode": "probe-sonnet-direct",
-    "model": "error",
-    "inputTokens": 0,
-    "outputTokens": 0,
-    "costUsd": 0,
-    "wallMs": 0,
+    "model": "claude-sonnet-5",
+    "inputTokens": 18,
+    "outputTokens": 1257,
+    "costUsd": 0.03652305,
+    "wallMs": 14808,
     "toolCalls": 0
   }
 }

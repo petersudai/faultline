@@ -141,8 +141,14 @@ test on the previously-failing cases returned 5/5 valid reviews.
 
 A pre-registered 1-seed Sonnet probe (`scripts/probe-sonnet.sh`, direct vs
 `--deep`, `eval/probe-verdict.ts` for the decision) is the cross-model data
-point. **Result: _(pending — one line, whatever the verdict; no 3-seed gate)_.**
-Generalisation to a stronger model remains a **stated limitation**, not a claim.
+point. **Result: no reversal at 1 seed.** `--deep` now runs clean on Sonnet
+(0/12 errors, vs 2/12 non-termination before the port); the direct call still
+hit 2/12 schema-validation errors (Sonnet has no temp-0, so per-run error counts
+vary — the 5-case smoke had 0); neither config flags a revert "High" (recall 0),
+and `--deep` did not beat the direct call by the pre-registered margins (strict
+Δ +8 pp, at the one-case threshold; recall Δ 0; AUC-derived Δ +0.07). A full
+3-seed Sonnet run is **future work**; generalisation to a stronger model remains
+a **stated limitation**, not a claim.
 
 ## Main failure mode (survives the final config)
 

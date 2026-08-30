@@ -9,35 +9,43 @@
     "additions": 44,
     "deletions": 11
   },
-  "summary": "This PR adds a fallback in the etag middleware: if `res.clone()` throws (e.g. AWS Lambda-like environments), it buffers the whole body via `res.arrayBuffer()` and rebuilds `c.res` from that buffer. `generateDigest` was extended to accept an ArrayBuffer as well as a stream. The main risk is that the try/catch wraps the entire `generateDigest(res.clone().body, generator)` call rather than just the `res.clone()` call, so an error thrown later (e.g. by a user-supplied `generateDigest`, or while reading the cloned stream) is also swallowed and triggers a second, redundant read+digest of the body, potentially double-invoking a user's digest generator and masking the real error. Tests only cover the simple case of `clone()` synchronously throwing, not generator failures or preservation of headers/status through `new Response(buffer, res)`.",
+  "summary": "This PR adds a fallback for environments (e.g., AWS Lambda) where `res.clone()` throws, reading the whole body via `arrayBuffer()` instead and reconstructing the response. The change is scoped to the etag middleware and includes a new test for the Lambda-like scenario, but the broad try/catch also swallows errors thrown by the digest generator itself (not just clone() failures), silently changing behaviour for that unrelated case with no test coverage.",
   "findings": [
     {
       "severity": "medium",
       "file": "src/middleware/etag/index.ts",
       "line": 97,
       "category": "error-handling",
-      "rationale": "The try block covers both res.clone() and the subsequent generateDigest call. If clone() succeeds but reading/generating the digest from the cloned stream throws partway through (e.g. custom generateDigest throws, or stream errors after some bytes were consumed), the catch treats it the same as an unsupported clone() and retries with res.arrayBuffer() on the original response — potentially double-invoking a user's digest generator and masking the real error, or throwing an unhandled error if the original response body was already partially read.",
-      "suggestedCheck": "Verify only the clone() call itself is guarded (e.g. by calling res.clone() outside/before the digest generation, or checking for clone support up front), and confirm behavior when a custom generateDigest throws — it should not be silently retried."
+      "rationale": "The try/catch wraps `generateDigest(res.clone().body, generator)` as a whole, intending to catch only `res.clone()` failures (e.g. AWS Lambda). But it also catches errors thrown from inside `generateDigest`/the user-supplied generator itself. Previously such errors propagated; now they trigger the fallback path (re-reading the body via `res.arrayBuffer()` and re-invoking the generator), silently changing behavior for an unrelated failure mode.",
+      "suggestedCheck": "Scope the try/catch to only the `res.clone()` call (not the whole generateDigest invocation), or add a test where a custom generateDigest throws to confirm the error still propagates instead of being swallowed."
     },
     {
       "severity": "low",
-      "file": "src/middleware/etag/index.test.ts",
-      "line": null,
+      "file": "src/middleware/etag/digest.ts",
+      "line": 20,
+      "category": "other",
+      "rationale": "`input instanceof ArrayBuffer` can behave unexpectedly across different JS realms (iframes/workers with distinct global ArrayBuffer constructors), though low risk for Hono's typical runtimes.",
+      "suggestedCheck": "Confirm this check behaves correctly across all supported runtimes (Node, Deno, Bun, Cloudflare Workers, Lambda)."
+    },
+    {
+      "severity": "low",
+      "file": "src/middleware/etag/index.ts",
+      "line": 103,
       "category": "test-gap",
-      "rationale": "The added test only covers the case where res.clone is overridden to throw synchronously; it doesn't test the case of the fallback path itself failing, or a custom generateDigest throwing, or verifying that response headers/status are preserved via new Response(buffer, res) versus the original res.",
-      "suggestedCheck": "Add a test asserting all original response headers/status/statusText survive the fallback path, and a test exercising a failure deeper in generateDigest to confirm it isn't misclassified as a clone-unsupported case."
+      "rationale": "No test covers the case where the digest generator itself throws (as opposed to res.clone() throwing), so the noted broad-catch behavior change is unverified by tests.",
+      "suggestedCheck": "Add a test with a generateDigest function that throws and assert the error is not swallowed."
     }
   ],
   "risk": "Medium",
   "modelRiskScore": 0.25,
-  "derivedRiskScore": 0.2875,
+  "derivedRiskScore": 0.3231,
   "meta": {
     "mode": "probe-sonnet-deep",
     "model": "claude-sonnet-5",
     "inputTokens": 12,
-    "outputTokens": 11691,
-    "costUsd": 0.2164266,
-    "wallMs": 127250,
-    "toolCalls": 2
+    "outputTokens": 7458,
+    "costUsd": 0.1582152,
+    "wallMs": 80021,
+    "toolCalls": 4
   }
 }

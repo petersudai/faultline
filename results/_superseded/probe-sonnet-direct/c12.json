@@ -9,27 +9,27 @@
     "additions": 14,
     "deletions": 2
   },
-  "summary": "Excludes `text/event-stream` content-type from the compress middleware's compressible-type regex so SSE responses are no longer buffered/broken by CompressionStream. Change is a small, targeted regex fix with a matching test added; low risk since it only narrows matching (excludes one specific content type) and doesn't alter behavior for other types.",
+  "summary": "This PR fixes a real bug where compress middleware buffered SSE streams by excluding text/event-stream from the compressible content-type regex, with a test added to confirm SSE responses are no longer compressed. The change is narrowly scoped, backward compatible, and well-tested, making it low risk.",
   "findings": [
     {
       "severity": "low",
       "file": "src/utils/compress.ts",
-      "line": 10,
+      "line": null,
       "category": "unhandled-edge-case",
-      "rationale": "The negative lookahead only excludes exact 'event-stream' subtype; content types with parameters not immediately followed by ';' or whitespace, or unusual casing/whitespace variants, could theoretically still slip through, though regex is case-insensitive and other subtypes end similarly.",
-      "suggestedCheck": "Manually verify the regex correctly excludes 'text/event-stream; charset=utf-8' and similar variants used by real SSE responses."
+      "rationale": "The regex change excludes text/event-stream from being treated as compressible via a negative lookahead. This relies on correct regex semantics for content-type values with parameters (e.g. 'text/event-stream; charset=utf-8'); worth double-checking the negative lookahead correctly handles all whitespace/semicolon boundary cases and doesn't accidentally exclude similarly-prefixed types (e.g., a hypothetical 'text/event-streamx') though the lookahead anchors on ; or whitespace or end so this should be fine.",
+      "suggestedCheck": "Manually verify regex against edge cases like 'text/event-stream;charset=utf-8', 'text/event-stream ', and ensure other text/* types are unaffected."
     }
   ],
   "risk": "Low",
-  "modelRiskScore": 0.1,
+  "modelRiskScore": 0.05,
   "derivedRiskScore": 0.05,
   "meta": {
     "mode": "probe-sonnet-direct",
     "model": "claude-sonnet-5",
-    "inputTokens": 2,
-    "outputTokens": 326,
-    "costUsd": 0.01422975,
-    "wallMs": 4472,
+    "inputTokens": 18,
+    "outputTokens": 460,
+    "costUsd": 0.0148668,
+    "wallMs": 5655,
     "toolCalls": 0
   }
 }

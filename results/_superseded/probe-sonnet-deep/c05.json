@@ -9,27 +9,35 @@
     "additions": 126,
     "deletions": 85
   },
-  "summary": "This PR adds a `basePath` constructor option and deprecates `app.basePath()`, converting internal base-path storage from a plain `_basePath` property to a private class field `#basePath`. The core routing logic (`route`, `mount`, `addRoute`) reads `this.#basePath` directly and appears well covered by updated tests. However, the constructor still does `Object.assign(this, options)` (which copies a `basePath` string property onto the instance) before separately assigning `this.#basePath = options.basePath ?? '/'` — this causes the assigned `basePath` string to shadow the prototype's `basePath()` method on instances created with `{ basePath: '/x' }`, so a subsequent `app.basePath(...)` call on such an instance would throw instead of behaving as a method. This combination is not covered by the updated tests.",
+  "summary": "This PR adds a `basePath` option to the `Hono` constructor and deprecates `app.basePath()`, converting internal `_basePath` to a private field `#basePath`. The `route()` method's single-argument overload (used to set base path only) was removed from the type signature but the implementation still supports `route(path)` without an app, which could be a subtle behavior/type mismatch. Constructor now accepts a full options object (`HonoOptions`) replacing the old `Partial<Pick<Hono,...>>` signature — since options like `strict` are deleted via `delete options.strict` and then `Object.assign(this, options)`, mutating the caller-supplied options object as a side effect, which was already present before but worth confirming doesn't leak reference issues since options may be reused by callers.",
   "findings": [
     {
-      "severity": "medium",
+      "severity": "low",
       "file": "src/hono-base.ts",
-      "line": 133,
-      "category": "unhandled-edge-case",
-      "rationale": "`Object.assign(this, options)` copies all option keys (including `basePath`) onto the instance as own properties. Since `basePath` is also the name of an existing prototype method, an instance created via `new Hono({ basePath: '/api' })` will have `this.basePath` overwritten with the string '/api', shadowing the `basePath()` method on the prototype. Calling `.basePath('/more')` afterward would throw since it's now a string, not a function.",
-      "suggestedCheck": "Test `new Hono({ basePath: '/api' }).basePath('/more')` and confirm it either works as intended or throws a clear TypeError; if the latter, consider excluding `basePath` from the Object.assign or documenting this as unsupported."
+      "line": 150,
+      "category": "api-contract",
+      "rationale": "The single-argument overload signature for route() (route<SubPath>(path): Hono<...>) was removed from the type declarations, but the implementation still handles the case where `app` is not passed (returns subApp with basePath). This changes the public TypeScript surface — code previously relying on the single-arg overload's distinct return type (RemoveBlankRecord<S>) will now get the two-arg overload's return type, which may cause type differences for existing consumers depending on the old overload comment noting it 'has been removed in v4' but is still present at runtime.",
+      "suggestedCheck": "Verify existing consumers calling `app.route('/prefix')` (single-arg) still type-check correctly and get expected typed subApp, since the distinct overload was deleted from the public API."
+    },
+    {
+      "severity": "low",
+      "file": "src/hono-base.ts",
+      "line": 128,
+      "category": "other",
+      "rationale": "Constructor does `delete options.strict` and `Object.assign(this, options)`, mutating the caller's passed-in options object as a side effect (this was pre-existing behavior, just renamed from init to options). If a caller reuses the same options object for multiple Hono instances (e.g., shared config object), the second construction could behave differently since strict was deleted from it, or Object.assign will now copy basePath directly onto `this` before `#basePath` private field assignment overwrites it — worth confirming ordering is correct.",
+      "suggestedCheck": "Confirm that Object.assign(this, options) doesn't inadvertently set a public `basePath` property that shadows or conflicts with the private #basePath field, and that reusing an options object across multiple `new Hono(options)` calls behaves as expected."
     }
   ],
-  "risk": "Medium",
-  "modelRiskScore": 0.35,
-  "derivedRiskScore": 0.25,
+  "risk": "Low",
+  "modelRiskScore": 0.15,
+  "derivedRiskScore": 0.0975,
   "meta": {
     "mode": "probe-sonnet-deep",
     "model": "claude-sonnet-5",
-    "inputTokens": 22,
-    "outputTokens": 18723,
-    "costUsd": 0.41159415000000005,
-    "wallMs": 208690,
-    "toolCalls": 8
+    "inputTokens": 38,
+    "outputTokens": 24604,
+    "costUsd": 0.50539995,
+    "wallMs": 270477,
+    "toolCalls": 6
   }
 }

@@ -5,39 +5,22 @@
     "title": "fix(context): single body overrides other returns",
     "baseSha": "fa6f51bb1b110cddc7dc41cb7e531fab27fe871f",
     "headSha": "92a1a129e6e9f430f93e35d217a7bd2a324c85cb",
-    "filesChanged": 3,
-    "additions": 36,
-    "deletions": 11
+    "filesChanged": 0,
+    "additions": 0,
+    "deletions": 0
   },
-  "summary": "This PR changes c.body()'s TypeScript signature to return a properly typed Response with TypedResponse metadata (status/body type), fixing an issue where c.body() overrides the inferred status/type of other handler returns in a route with multiple return paths. The runtime behavior of #newResponse is unchanged; the change is primarily type-level plus a corresponding test update.",
-  "findings": [
-    {
-      "severity": "low",
-      "file": "src/context.ts",
-      "line": 730,
-      "category": "other",
-      "rationale": "body() now types its return as Response & TypedResponse<...>, but the underlying #newResponse implementation still returns a plain Response cast via 'as ReturnType<BodyRespond>'. If #newResponse's actual output ever diverges from the typed contract (e.g., different status handling), the type system won't catch it since it's force-cast.",
-      "suggestedCheck": "Confirm #newResponse always produces a Response consistent with the claimed TypedResponse<Data, Status, Format> contract for all overload branches (null data disallowed content, contentful headers etc.)."
-    },
-    {
-      "severity": "low",
-      "file": "src/context.test.ts",
-      "line": 158,
-      "category": "other",
-      "rationale": "Test change replaces reading c.res after multiple header sets with a second explicit c.body('Hi') call; behavior around header clearing when calling body twice is now implicitly relied upon and not obviously covered elsewhere.",
-      "suggestedCheck": "Verify calling c.body() multiple times still correctly reflects the latest header state used elsewhere in the codebase/tests."
-    }
-  ],
+  "summary": "[review failed: Model output failed schema validation:]",
+  "findings": [],
   "risk": "Low",
-  "modelRiskScore": 0.15,
-  "derivedRiskScore": 0.0975,
+  "modelRiskScore": 0.5,
+  "derivedRiskScore": 0,
   "meta": {
     "mode": "probe-sonnet-direct",
-    "model": "claude-sonnet-5",
-    "inputTokens": 2,
-    "outputTokens": 510,
-    "costUsd": 0.01624725,
-    "wallMs": 7070,
+    "model": "error",
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "costUsd": 0,
+    "wallMs": 0,
     "toolCalls": 0
   }
 }

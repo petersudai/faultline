@@ -9,35 +9,27 @@
     "additions": 6,
     "deletions": 2
   },
-  "summary": "The change replaces `typeof navigator !== 'undefined' && typeof navigator.userAgent === 'string'` with a try/catch around a direct `navigator.userAgent` access, to handle environments (e.g. Cloudflare Pages) where accessing `navigator` throws rather than being simply `undefined`. This is a narrow, defensive fix, but the bare catch silently swallows any error type, and no test was added covering the specific throwing-navigator scenario this PR targets.",
+  "summary": "Small, targeted fix replacing a `typeof navigator !== 'undefined'` guard with a try/catch around direct access to `navigator.userAgent`, to handle Cloudflare Pages where `navigator` is declared but throws on access. The change lacks a regression test for the specific edge case being fixed.",
   "findings": [
     {
       "severity": "low",
       "file": "src/helper/adapter/index.ts",
-      "line": 53,
-      "category": "error-handling",
-      "rationale": "The bare `catch {}` silently swallows any error thrown while accessing navigator/navigator.userAgent, not just the expected ReferenceError/TypeError for missing navigator. If some runtime throws navigator.userAgent for an unexpected reason (e.g. a getter that throws due to security policy but is otherwise present), the code will silently fall through to other detection branches rather than surfacing the issue, which could make future regressions harder to diagnose.",
-      "suggestedCheck": "Confirm no runtime actually defines navigator with a userAgent getter that can throw transient/recoverable errors (vs. simply being absent), since this fix will mask those differently than before."
-    },
-    {
-      "severity": "low",
-      "file": "src/helper/adapter/index.test.ts",
       "line": null,
       "category": "test-gap",
-      "rationale": "No new test was added covering the specific Cloudflare Pages scenario (navigator throwing on access) that this PR is meant to fix; the existing test only exercises the Node.js fallback path.",
-      "suggestedCheck": "Add a test that mocks `navigator` to throw on property access (simulating Cloudflare Pages) and assert getRuntimeKey() still resolves correctly, e.g. falling through to 'other' or another expected key."
+      "rationale": "The fix addresses a specific runtime edge case (Cloudflare Pages where `navigator` is undeclared/undefined) but no test was added to verify the try/catch actually prevents a ReferenceError/TypeError in that scenario. The existing test only checks the Node.js path.",
+      "suggestedCheck": "Add a test that deletes/mocks `navigator` off globalThis (or defines it as undefined) and asserts getRuntimeKey() still returns without throwing, falling through to the Node/other detection paths."
     }
   ],
   "risk": "Low",
-  "modelRiskScore": 0.1,
-  "derivedRiskScore": 0.0975,
+  "modelRiskScore": 0.05,
+  "derivedRiskScore": 0.05,
   "meta": {
     "mode": "probe-sonnet-deep",
     "model": "claude-sonnet-5",
-    "inputTokens": 12,
-    "outputTokens": 3616,
-    "costUsd": 0.07437495,
-    "wallMs": 39544,
+    "inputTokens": 10,
+    "outputTokens": 3329,
+    "costUsd": 0.0681339,
+    "wallMs": 38287,
     "toolCalls": 4
   }
 }

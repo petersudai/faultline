@@ -5,22 +5,39 @@
     "title": "perf(context): add fast path to c.json() matching c.text() optimization",
     "baseSha": "69f303e0c3a45c09e7ec56611973751208737857",
     "headSha": "a32bdde71473f1534789d0b11ea0eae710e611f7",
-    "filesChanged": 0,
-    "additions": 0,
-    "deletions": 0
+    "filesChanged": 1,
+    "additions": 14,
+    "deletions": 6
   },
-  "summary": "[review failed: agent never submitted a review]",
-  "findings": [],
+  "summary": "This PR adds a fast path to c.json() mirroring the existing c.text() optimization, using Response.json(object) when no status/headers/finalized state exists. The new fast path relies on the platform's built-in Response.json() implementation instead of the previous manual JSON.stringify + setDefaultContentType flow, which could subtly differ in content-type formatting or error behavior (e.g., BigInt/circular references) compared to the slow path. The existing tests only exercise the slow path (with status/headers args), so the new bare c.json({...}) fast path isn't directly verified for header/content-type parity or correct output.",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/context.ts",
+      "line": 709,
+      "category": "unhandled-edge-case",
+      "rationale": "The fast path uses `Response.json(object)` (built-in Web API) instead of manually constructing `new Response(JSON.stringify(object), { headers: {...} })` as done previously. Response.json() re-serializes via its own JSON.stringify equivalent and sets Content-Type per spec; if `object` contains values that throw during stringification (e.g., BigInt, circular refs) the error path/type could differ subtly from the previous `#newResponse` path, and there's no test asserting the exact header value/casing/charset match between fast and slow paths for c.json().",
+      "suggestedCheck": "Add/verify a test that calls c.json({...}) with no status/headers and asserts res.headers.get('Content-Type') exactly equals 'application/json' (not e.g. 'application/json; charset=UTF-8') to ensure parity with the previous behavior."
+    },
+    {
+      "severity": "low",
+      "file": "src/context.ts",
+      "line": 705,
+      "category": "test-gap",
+      "rationale": "No new test was added specifically for the new json() fast path (i.e., c.json(obj) called with zero additional arguments and no prior header/status/finalized state) even though the c.text() fast path presumably has coverage; existing c.json() test only covers the arg+headers case which forces the slow path.",
+      "suggestedCheck": "Confirm test suite includes a case for bare `c.json({...})` with no arg/headers to lock in the new fast-path output shape."
+    }
+  ],
   "risk": "Low",
-  "modelRiskScore": 0.5,
-  "derivedRiskScore": 0,
+  "modelRiskScore": 0.2,
+  "derivedRiskScore": 0.0975,
   "meta": {
     "mode": "probe-sonnet-deep",
-    "model": "error",
-    "inputTokens": 0,
-    "outputTokens": 0,
-    "costUsd": 0,
-    "wallMs": 0,
-    "toolCalls": 0
+    "model": "claude-sonnet-5",
+    "inputTokens": 38,
+    "outputTokens": 19207,
+    "costUsd": 0.436302,
+    "wallMs": 222856,
+    "toolCalls": 8
   }
 }
