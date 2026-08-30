@@ -9,43 +9,35 @@
     "additions": 50,
     "deletions": 9
   },
-  "summary": "This PR adds support for custom hashing algorithms to the etag middleware by accepting an optional `generateDigest` function parameter. The change allows users to override the default SHA-1 algorithm with alternatives like SHA-256. The main risk is that the signature of the internal `generateDigest` function changed, requiring all callers to be updated.",
+  "summary": "This PR adds support for custom hashing algorithms to the ETag middleware by allowing users to provide a `generateDigest` function option. The implementation correctly threads the custom generator through the call chain and includes tests for SHA-256. The change is backward-compatible with a sensible default (SHA-1), and the removal of the `await c.res.blob()` call appears to be a safe cleanup since the body is already being consumed by `generateDigest`.",
   "findings": [
     {
-      "severity": "medium",
+      "severity": "low",
       "file": "src/middleware/etag/index.ts",
       "line": 76,
-      "category": "api-contract",
-      "rationale": "The internal `generateDigest` function signature changed from `(stream: ReadableStream<Uint8Array> | null)` to `(stream: ReadableStream<Uint8Array> | null, generator: (body: Uint8Array) => ArrayBuffer | Promise<ArrayBuffer>)`. While this is an internal function, if any external code or tests directly import and call `generateDigest` from `digest.ts`, they will break. The diff shows the call site was updated, but there's a risk of missed callers.",
-      "suggestedCheck": "Search the codebase and any dependent packages for direct imports of `generateDigest` from `src/middleware/etag/digest.ts` to ensure no external callers are broken."
+      "category": "unhandled-edge-case",
+      "rationale": "The removal of `await c.res.blob()` before the 304 response assumes the body has been fully consumed by `generateDigest`. If `generateDigest` is called with a stream that errors mid-read or if a custom generator doesn't fully consume the stream, the body might not be properly drained, potentially causing resource leaks or unexpected behavior in edge cases.",
+      "suggestedCheck": "Verify that custom `generateDigest` implementations are expected to fully consume the stream, and consider documenting this requirement. Test with a custom generator that partially consumes or errors on the stream."
     },
     {
       "severity": "low",
       "file": "src/middleware/etag/index.ts",
-      "line": 86,
-      "category": "other",
-      "rationale": "The line `await c.res.blob() // Force using body` was removed from the 304 Not Modified response path. This line may have been important for ensuring the response body was fully consumed before sending a 304. Removing it could potentially leave the body unconsumed in some edge cases, though 304 responses should have no body by spec.",
-      "suggestedCheck": "Verify that removing `await c.res.blob()` does not cause issues with response body handling or resource cleanup in the 304 Not Modified case. Check if this line was necessary for any cleanup or side effects."
-    },
-    {
-      "severity": "low",
-      "file": "src/middleware/etag/index.test.ts",
-      "line": 23,
-      "category": "test-gap",
-      "rationale": "The new test only verifies that a custom SHA-256 algorithm produces the expected etag values. It does not test error handling if the custom `generateDigest` function throws an error or returns an invalid value. Edge cases like null/undefined returns or rejected promises are not covered.",
-      "suggestedCheck": "Consider adding tests for error scenarios: what happens if `generateDigest` throws, rejects, or returns an unexpected type? Verify the middleware handles these gracefully."
+      "line": 59,
+      "category": "error-handling",
+      "rationale": "The default `generator` function is defined inline and calls `crypto.subtle.digest` without explicit error handling. If `crypto.subtle` is unavailable at runtime (despite the check in `generateDigest`), the error will propagate. However, this mirrors the original behavior, so it's a pre-existing pattern rather than a new risk.",
+      "suggestedCheck": "Confirm that the `crypto.subtle` availability check in `generateDigest` is sufficient, or add a try-catch in the middleware to handle potential crypto errors gracefully."
     }
   ],
-  "risk": "Medium",
-  "modelRiskScore": 0.15,
-  "derivedRiskScore": 0.3231,
+  "risk": "Low",
+  "modelRiskScore": 0.08,
+  "derivedRiskScore": 0.0975,
   "meta": {
     "mode": "gate-baseline-s3",
     "model": "claude-haiku-4-5-20251001",
-    "inputTokens": 2391,
-    "outputTokens": 677,
-    "costUsd": 0.005776,
-    "wallMs": 8344,
+    "inputTokens": 3144,
+    "outputTokens": 533,
+    "costUsd": 0.005809,
+    "wallMs": 6751,
     "toolCalls": 0
   }
 }

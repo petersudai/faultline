@@ -39,7 +39,7 @@ clean, threshold-free. One case ≈ 8 pp, so the deciding comparison ran as a
 
 | config (Haiku 4.5, 12 cases, mean of 3 seeds) | strict acc | recall on reverts | AUC (derived risk score) | root-cause | $/PR |
 |---|---|---|---|---|---|
-| **direct call — one engineered prompt** | **66.7%** | 33% | **0.76** | **6/6** | **$0.007** |
+| **direct call — one engineered prompt** | **66.7%** | 33% | **0.81** | **6/6** | **$0.006** |
 | + investigation loop + verify pass (`--deep`) | 55.6% | 22% | 0.57 | 2–3/6 | $0.041 |
 | + adversarial critic pass (removed) | 66.7% | 72% | 0.69 | 6/6 | $0.042 |
 
@@ -49,17 +49,21 @@ root-cause localisation (6/6 → 2–3/6) — attention goes to tool output inst
 the change. An adversarial critic on top raises recall on reverts (33% → 72%),
 but in lockstep flags a clean PR "High" on ~40% of cases (specificity
 100% → 61%), and its model-score AUC — 0.78 on average — swings 0.61–0.97 across
-seeds, one below the direct call's 0.63. It **failed the pre-registered gate**
-and is not in the shipped pipeline.
+seeds, level with the direct call's 0.78 on the mean and its worst seed far
+below. It **failed the pre-registered gate** and is not in the shipped pipeline.
 
-**Hot take:** for triage on this data the model was never short on information —
-one call finds every root cause (6/6). Nothing added on top sorted PRs more
-dependably: the direct call's derived risk score is a fixed formula over that
-one call (AUC 0.76, ±0.02 across seeds), and the adversarial critic only trades
-specificity for recall about one for one. When an agent under-commits, a louder
-critic changes *where* you sit on the ROC curve, not *which* curve you're on.
-The honest agentic win here is the trajectory, not the verdict. See
-`CHANGELOG.md` for the full ablation and `DESIGN_LOG.md` for every decision.
+**Hot take:** forcing the one-call baseline to emit its verdict as a structured
+tool call instead of free-text JSON — same prompt, zero extra cost — improved
+its risk-score separation: derived-score AUC 0.76 → 0.81, triage accuracy
+66.7 → 75%, and it's now deterministic at temp 0. (Of 5 "Medium" hedges it
+dropped to "Low", 3 were clean cases committing correctly; the other 2 were
+risky cases neither config catches — no regression.) If a small model hedges,
+fix the output channel before adding machinery. The machinery didn't earn its
+keep: the investigation loop doesn't beat the direct call, and the adversarial
+critic only trades specificity for recall about one for one (+39 pp / −39 pp)
+while ranking PRs no better on average. A louder critic changes *where* you sit
+on the ROC curve, not *which* curve you're on. See `CHANGELOG.md` for the full
+ablation and `DESIGN_LOG.md` for every decision.
 
 ## `--deep`: the investigation loop (opt-in)
 

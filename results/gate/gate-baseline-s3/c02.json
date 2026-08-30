@@ -9,59 +9,51 @@
     "additions": 44,
     "deletions": 11
   },
-  "summary": "This PR adds a fallback mechanism for environments where `Response.clone()` is not supported (e.g., AWS Lambda). When cloning fails, it reads the response body into an ArrayBuffer and regenerates the ETag. The `generateDigest` function is refactored to accept either a ReadableStream or ArrayBuffer.",
+  "summary": "This PR adds a fallback mechanism for environments (like AWS Lambda) where `Response.clone()` is not supported. When cloning fails, it falls back to reading the response body as an ArrayBuffer and regenerating the ETag. The change is well-tested and handles the edge case gracefully, but there is a critical data-loss risk: calling `res.arrayBuffer()` consumes the response body, and the fallback creates a new Response that may not preserve all original properties.",
   "findings": [
     {
       "severity": "high",
       "file": "src/middleware/etag/index.ts",
-      "line": 102,
+      "line": 103,
       "category": "data-loss",
-      "rationale": "After calling `res.arrayBuffer()`, the response body stream is consumed and cannot be read again. The fallback creates a new Response with the buffer, but the original response body is already exhausted. If the middleware is used in a chain where downstream handlers expect to read the body, they will get an empty stream.",
-      "suggestedCheck": "Verify that after the fallback path executes, the response body is still readable by downstream middleware and the final consumer. Test with a middleware chain that reads the body multiple times."
+      "rationale": "After calling `res.arrayBuffer()` on line 102, the original response body is consumed and cannot be read again. The new Response created on line 103 uses the buffer, but this may not preserve all original response properties (e.g., custom headers, status, statusText set after body was read). More critically, if the original response body was already partially or fully consumed before this middleware runs, `arrayBuffer()` will return an empty buffer, causing the ETag to be computed on empty data and the response body to be lost entirely.",
+      "suggestedCheck": "Verify that the response body has not been consumed before the etag middleware runs. Consider adding a guard to detect if the body is already consumed (e.g., by checking if `res.bodyUsed` is true) and skip ETag generation in that case, or document this as a limitation. Also verify that the new Response on line 103 correctly preserves all original response properties."
     },
     {
       "severity": "medium",
       "file": "src/middleware/etag/index.ts",
-      "line": 101,
-      "category": "error-handling",
-      "rationale": "The catch block catches all errors from `res.clone()`, but `res.clone().body` could also throw if the response object is malformed. The fallback assumes `res.arrayBuffer()` will succeed, but it could also fail. If `res.arrayBuffer()` throws, the error is unhandled and will propagate.",
-      "suggestedCheck": "Add error handling around the `res.arrayBuffer()` call in the fallback path, or document what errors are expected and how they should be handled."
-    },
-    {
-      "severity": "medium",
-      "file": "src/middleware/etag/index.ts",
-      "line": 110,
+      "line": 103,
       "category": "api-contract",
-      "rationale": "The fallback reassigns `c.res` to a new Response object. This could break downstream middleware or handlers that hold references to the original response object or expect specific properties/methods on it. The new Response may not preserve all properties of the original.",
-      "suggestedCheck": "Verify that reassigning `c.res` does not break the response pipeline. Check if any middleware after etag() depends on the original response object's identity or properties."
+      "rationale": "The fallback creates a new Response object and assigns it to `c.res`, replacing the original response. This changes the response object identity and may break code that holds a reference to the original response or relies on object equality checks. Additionally, the new Response constructor call `new Response(buffer, res)` uses `res` as the init parameter, which should work, but the semantics differ from the original response object.",
+      "suggestedCheck": "Confirm that replacing `c.res` with a new Response object does not break downstream middleware or user code that may hold references to the original response. Test with middleware chains where multiple handlers interact with the response object."
     },
     {
-      "severity": "low",
-      "file": "src/middleware/etag/digest.ts",
-      "line": 12,
-      "category": "test-gap",
-      "rationale": "The new ArrayBuffer path in `generateDigest` is tested indirectly through the integration test, but there is no direct unit test for the `generateDigest` function with an ArrayBuffer input. The function signature changed to accept a union type, but test coverage for both paths is not explicit.",
-      "suggestedCheck": "Consider adding a direct unit test for `generateDigest` with an ArrayBuffer input to ensure the logic is correct independent of the middleware integration."
+      "severity": "medium",
+      "file": "src/middleware/etag/index.ts",
+      "line": 97,
+      "category": "error-handling",
+      "rationale": "The catch block silently catches all errors from `res.clone()`, not just the case where clone is unsupported. Other errors (e.g., out-of-memory, network errors) will also trigger the fallback, which may mask real problems and produce incorrect ETags or responses.",
+      "suggestedCheck": "Consider catching only the specific error type or message that indicates clone is not supported, or add logging to distinguish between clone-not-supported and other errors. This will help with debugging and prevent masking of unexpected failures."
     },
     {
       "severity": "low",
       "file": "src/middleware/etag/index.test.ts",
-      "line": 159,
+      "line": 158,
       "category": "test-gap",
-      "rationale": "The test mocks `clone()` to throw an error, but it doesn't verify that the fallback path actually executes or that the response body is still readable after the middleware processes it. The test only checks that status, ETag, and text are correct, but doesn't verify the body wasn't consumed twice.",
-      "suggestedCheck": "Enhance the test to verify that the response body can be read multiple times if needed, or document the limitation that the body is consumed during ETag generation."
+      "rationale": "The test mocks clone() to throw an error, but does not verify that the response body is correctly preserved and readable after the middleware runs. The test only checks that the status, ETag, and text are correct, but does not verify that the body was not consumed or lost during the fallback process.",
+      "suggestedCheck": "Add a test case that verifies the response body is correctly preserved and can be read multiple times (e.g., by calling `res.text()` twice or by checking `res.bodyUsed` before and after)."
     }
   ],
   "risk": "High",
-  "modelRiskScore": 0.25,
-  "derivedRiskScore": 0.7716,
+  "modelRiskScore": 0.65,
+  "derivedRiskScore": 0.7595,
   "meta": {
     "mode": "gate-baseline-s3",
     "model": "claude-haiku-4-5-20251001",
-    "inputTokens": 1757,
-    "outputTokens": 920,
-    "costUsd": 0.006357,
-    "wallMs": 8946,
+    "inputTokens": 2510,
+    "outputTokens": 981,
+    "costUsd": 0.007415,
+    "wallMs": 11626,
     "toolCalls": 0
   }
 }

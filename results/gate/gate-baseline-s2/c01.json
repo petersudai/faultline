@@ -9,51 +9,35 @@
     "additions": 14,
     "deletions": 6
   },
-  "summary": "This PR adds a fast-path optimization to `c.json()` matching the existing optimization in `c.text()`, avoiding unnecessary allocations when no status, headers, or finalized state exist. The change uses `Response.json()` for the fast path instead of manually constructing a Response with inline headers.",
+  "summary": "This PR adds a fast-path optimization to `c.json()` that mirrors the existing optimization in `c.text()`, avoiding unnecessary allocations when no status, headers, or finalized state exist. The change is low-risk: it's a straightforward performance optimization with no API contract changes, and the fast-path conditions are identical to the proven `c.text()` pattern.",
   "findings": [
     {
-      "severity": "medium",
+      "severity": "low",
       "file": "src/context.ts",
-      "line": 712,
+      "line": 710,
       "category": "api-contract",
-      "rationale": "The fast path uses `Response.json(object)` which has different behavior than the slow path `this.#newResponse(JSON.stringify(object), ...)`. Response.json() automatically sets Content-Type and may handle serialization differently. The PR description mentions using 'inline header object' but the code uses Response.json() which creates a Headers instance, not a plain object. This contradicts the stated optimization goal and may not achieve the claimed performance benefits in the node-server adapter.",
-      "suggestedCheck": "Verify that Response.json(object) produces identical output (including header type and serialization) as JSON.stringify(object) passed through #newResponse(). Confirm whether Response.json() creates a Headers instance or plain object, and whether this aligns with the node-server adapter's optimization expectations."
+      "rationale": "The PR switches from `this.#newResponse(JSON.stringify(object), ...)` to `Response.json(object)` in the fast path. While `Response.json()` is a standard Web API that should produce identical output, there's a subtle difference: `Response.json()` internally calls `JSON.stringify()` and sets the Content-Type header. The PR assumes this produces byte-for-byte identical output to the slow path. If there are any edge cases in how `Response.json()` serializes or encodes the JSON (e.g., charset handling, number precision), the fast path could diverge from the slow path behavior.",
+      "suggestedCheck": "Verify that `Response.json(object)` produces identical serialization and headers to `JSON.stringify(object)` followed by `this.#newResponse()` with `setDefaultContentType('application/json', headers)`. Test with edge cases: large numbers, special characters, Unicode, circular references (if applicable), and verify the exact Content-Type header value (e.g., charset parameter)."
     },
     {
-      "severity": "medium",
+      "severity": "low",
       "file": "src/context.ts",
       "line": 660,
-      "category": "other",
-      "rationale": "The new #useFastPath() helper method checks three conditions, but the fast path in json() adds two more conditions (!arg && !headers). This is inconsistent with the text() method which also checks these same two conditions. The helper is incomplete and callers must remember to add the extra checks. This could lead to bugs if other methods use #useFastPath() without the additional guards.",
-      "suggestedCheck": "Consider whether #useFastPath() should include the !arg && !headers checks, or document clearly that callers must verify these conditions separately. Review if any other methods might incorrectly use this helper without the full set of guards."
-    },
-    {
-      "severity": "low",
-      "file": "src/context.ts",
-      "line": 707,
       "category": "test-gap",
-      "rationale": "The PR adds a new code path (Response.json() fast path) but the description doesn't mention test coverage for this path. The fast path has different behavior than the slow path and should be tested to ensure it handles edge cases (circular references, undefined values, custom serializers) identically.",
-      "suggestedCheck": "Verify that tests exist covering c.json() with various object types, and that both fast and slow paths are exercised. Check for tests with circular references, undefined values, and other JSON edge cases."
-    },
-    {
-      "severity": "low",
-      "file": "src/context.ts",
-      "line": 681,
-      "category": "other",
-      "rationale": "The text() method was refactored to use the new #useFastPath() helper, changing from an inline condition to a method call. While functionally equivalent, this adds a method call overhead in the hot path. For a performance-focused PR, this is a minor concern but worth noting.",
-      "suggestedCheck": "Confirm that the method call overhead of #useFastPath() is negligible compared to the optimization gains, or consider inlining the check in both methods."
+      "rationale": "The new `#useFastPath()` helper method is extracted and reused in both `text()` and `json()`, but there's no explicit test coverage shown for the fast-path conditions in `json()`. The fast path is only taken when `!arg && !headers` in addition to the base conditions. If a test suite doesn't cover the case where `c.json(obj)` is called with no second or third argument, the fast path may not be exercised.",
+      "suggestedCheck": "Ensure test coverage includes: (1) `c.json(obj)` with no args (fast path), (2) `c.json(obj, 200)` with status (slow path), (3) `c.json(obj, { headers: {...} })` with headers (slow path), and (4) `c.json(obj, 200, { headers: {...} })` with both (slow path). Verify the output is identical across all cases."
     }
   ],
-  "risk": "Medium",
-  "modelRiskScore": 0.15,
-  "derivedRiskScore": 0.4923,
+  "risk": "Low",
+  "modelRiskScore": 0.05,
+  "derivedRiskScore": 0.0975,
   "meta": {
     "mode": "gate-baseline-s2",
     "model": "claude-haiku-4-5-20251001",
-    "inputTokens": 1665,
-    "outputTokens": 839,
-    "costUsd": 0.00586,
-    "wallMs": 9171,
+    "inputTokens": 2418,
+    "outputTokens": 709,
+    "costUsd": 0.005963,
+    "wallMs": 8613,
     "toolCalls": 0
   }
 }

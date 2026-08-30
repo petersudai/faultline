@@ -9,23 +9,23 @@
     "additions": 43,
     "deletions": 21
   },
-  "summary": "This PR fixes the type signature of `factory.createMiddleware()` by adding an explicit return type annotation and correcting default type parameters in the Factory class from `any` to more specific defaults (`Env` and `string`). The changes are primarily type-level fixes with a new test case validating the middleware type behavior.",
+  "summary": "This PR fixes the return type annotation of `factory.createMiddleware()` to explicitly return `MiddlewareHandler<E, P, I>` instead of relying on implicit inference, and corrects the default type parameters for the `Factory` class from `any` to more specific defaults (`Env` and `string`). The changes are low-risk type refinements with a new test to verify the fix.",
   "findings": [
     {
       "severity": "low",
       "file": "src/helper/factory/index.ts",
-      "line": 286,
-      "category": "breaking-change",
-      "rationale": "Changing default type parameters from `any` to `Env` and `string` could theoretically affect code that relied on the permissive `any` defaults, though this is unlikely in practice since `Env` is a well-defined base type and `string` is more restrictive than `any` for path parameters.",
-      "suggestedCheck": "Verify that no existing code in the repo or documented examples instantiate `Factory` or `createFactory` without explicit type parameters and rely on the old `any` defaults for type inference."
+      "line": 301,
+      "category": "api-contract",
+      "rationale": "The return type annotation on `createMiddleware` is now explicit. While this is a type-only change that shouldn't affect runtime behavior, it could theoretically affect type inference in edge cases where callers relied on implicit inference. However, the explicit return type is more correct and should improve type safety.",
+      "suggestedCheck": "Verify that existing code calling `factory.createMiddleware()` still type-checks correctly, especially any code that relied on type inference from the middleware parameter."
     },
     {
       "severity": "low",
-      "file": "src/helper/factory/index.test.ts",
-      "line": 354,
-      "category": "test-gap",
-      "rationale": "The new `createMiddleware` test uses only a type assertion (`Expect<Equal<...>>`) without a runtime assertion. If the type check fails, the test will still pass at runtime. However, TypeScript compilation will catch type errors, so this is a minor concern.",
-      "suggestedCheck": "Confirm that the test suite runs TypeScript type checking as part of the test pipeline (e.g., via `tsc --noEmit` or similar) so that type mismatches are caught."
+      "file": "src/helper/factory/index.ts",
+      "line": 283,
+      "category": "api-contract",
+      "rationale": "Default type parameters changed from `any` to `Env` and `string`. This is a type-only change that makes the API more explicit and type-safe. The `Env` default is more restrictive than `any`, but this should only affect code that was relying on the permissive `any` default, which is generally an anti-pattern.",
+      "suggestedCheck": "Confirm that no existing code depends on the `any` default type parameters in ways that would break with the more restrictive `Env` and `string` defaults."
     }
   ],
   "risk": "Low",
@@ -34,10 +34,10 @@
   "meta": {
     "mode": "gate-baseline-s3",
     "model": "claude-haiku-4-5-20251001",
-    "inputTokens": 1936,
-    "outputTokens": 446,
-    "costUsd": 0.004166,
-    "wallMs": 5113,
+    "inputTokens": 2689,
+    "outputTokens": 495,
+    "costUsd": 0.005164,
+    "wallMs": 6122,
     "toolCalls": 0
   }
 }

@@ -9,35 +9,35 @@
     "additions": 14,
     "deletions": 2
   },
-  "summary": "This PR fixes a bug where the `compress` middleware was buffering server-sent events (SSE) instead of streaming them. The fix modifies the `COMPRESSIBLE_CONTENT_TYPE_REGEX` to exclude `text/event-stream` MIME type from compression, and adds a test to verify SSE streams are not compressed.",
+  "summary": "This PR fixes a bug where the `compress` middleware was buffering server-sent events (SSE) instead of streaming them by excluding `text/event-stream` content type from compression. The fix is minimal and well-tested, with a regex update to skip compression for SSE and a corresponding test case. The change is low-risk as it only affects SSE streams and doesn't alter existing behavior for other content types.",
   "findings": [
     {
       "severity": "low",
-      "file": "src/middleware/compress/index.test.ts",
-      "line": 168,
-      "category": "test-gap",
-      "rationale": "The test verifies that SSE responses are not compressed (13000 bytes uncompressed), but it doesn't verify that the SSE data is actually streamed correctly or that the client receives the events in real-time. The test only checks the final byte length, which could pass even if streaming behavior is broken.",
-      "suggestedCheck": "Consider adding a test that verifies SSE events are received incrementally/streamed, not buffered until the end. This could involve checking response headers or simulating a streaming client."
+      "file": "src/utils/compress.ts",
+      "line": null,
+      "category": "other",
+      "rationale": "The regex modification is complex and uses a negative lookahead `(?!event-stream(?:[;\\s]|$))` to exclude text/event-stream. While the logic appears correct, regex changes carry inherent risk of unintended side effects. The pattern should be validated against edge cases like 'text/event-stream; charset=utf-8' and 'text/event-stream-custom'.",
+      "suggestedCheck": "Verify the regex handles all valid Content-Type header formats for SSE (e.g., with charset, boundary parameters) and doesn't accidentally exclude other text/* types that should be compressible."
     },
     {
       "severity": "low",
-      "file": "src/utils/compress.ts",
-      "line": 10,
-      "category": "other",
-      "rationale": "The regex change uses a negative lookahead `(?!event-stream(?:[;\\s]|$))` to exclude `text/event-stream`. While this appears correct, the regex is complex and difficult to verify by inspection. A subtle regex error could cause unintended compression or non-compression of other content types.",
-      "suggestedCheck": "Manually verify the regex logic: (1) confirm `text/event-stream` is excluded, (2) confirm `text/event-stream; charset=utf-8` is also excluded, (3) confirm other `text/*` types like `text/html` are still matched for compression."
+      "file": "src/middleware/compress/index.test.ts",
+      "line": null,
+      "category": "test-gap",
+      "rationale": "The test only verifies that SSE is not compressed (13000 bytes uncompressed). It doesn't verify that the SSE stream actually works correctly end-to-end (i.e., that messages are streamed in real-time rather than buffered).",
+      "suggestedCheck": "Consider adding a test that verifies SSE messages are received incrementally/streamed rather than all at once, to ensure the fix actually solves the original buffering problem."
     }
   ],
   "risk": "Low",
-  "modelRiskScore": 0.08,
+  "modelRiskScore": 0.05,
   "derivedRiskScore": 0.0975,
   "meta": {
     "mode": "gate-baseline-s2",
     "model": "claude-haiku-4-5-20251001",
-    "inputTokens": 1862,
-    "outputTokens": 475,
-    "costUsd": 0.004237,
-    "wallMs": 6058,
+    "inputTokens": 2615,
+    "outputTokens": 495,
+    "costUsd": 0.00509,
+    "wallMs": 6996,
     "toolCalls": 0
   }
 }

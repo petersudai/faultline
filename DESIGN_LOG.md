@@ -513,6 +513,8 @@ Cloned the pushed repo to a clean directory and ran the judge path:
   recall 33.3%, root-cause 6/6, $0.08** — identical to the committed
   `results/baseline.json` to the digit (the baseline is a single temp-0 call, so
   it reproduces exactly; the agent's run-to-run range is documented in D18).
+  *(Pre-port numbers. The D21 output-format port lifted triage to 75.0% and made
+  the direct call fully deterministic; still reproduces to the digit.)*
 
 The **agent** step from a clean clone surfaced three real bugs (baseline is
 fully offline; the agent needs a repo checkout, which isn't committed):
@@ -561,18 +563,22 @@ runs after verify) and put to a **gate fixed before the run** (`scripts/gate.sh`
 
 **Result — FAIL.** Mean of 3 seeds (range):
 
+_Direct-call numbers below are post-port (D21). The gate was originally run
+pre-port (direct-call AUC 0.63 / 0.76); the verdict was the same, less
+decisively — after the port the critic no longer even ties, see D21._
+
 | | strict | recall | specificity | AUC(model) | AUC(derived) | RC | $/PR |
 |---|---|---|---|---|---|---|---|
-| direct call | 66.7% | 33% | 100% | 0.63 | 0.76 (±0.02) | 6/6 | $0.007 |
+| direct call | 66.7% | 33% | 100% | 0.78 | 0.81 (deterministic) | 6/6 | $0.006 |
 | loop, no critic | 55.6% (50–67) | 22% (17–33) | 89% (83–100) | 0.55 | 0.57 | 2–3/6 | $0.041 |
 | loop + critic | 66.7% (58–75) | 72% (67–83) | 61% (50–67) | 0.78 (0.61–0.97) | 0.69 (0.61–0.81) | 6/6 | $0.042 |
 
 - **C1 recall — PASS.** +50 pp mean over the loop, worst seed 67%.
-- **C2 AUC — FAIL** on seed-robustness. Mean 0.55 → 0.78, but the critic's worst
-  seed is 0.61, below the direct call's 0.63 (other seeds 0.75, 0.97). The
-  direct call's derived score doesn't move — 0.76 within 0.02 across seeds, a
-  fixed formula over one temperature-0 call. Higher mean, noisier; not a more
-  dependable ranker.
+- **C2 AUC — FAIL.** The critic's mean (0.78) no longer clears the ported direct
+  call's mean (also 0.78), and its worst seed (0.61) is far below it (other
+  seeds 0.75, 0.97). The direct call's derived score is 0.81, identical across
+  seeds — a fixed formula over one temperature-0 structured call. Not a more
+  dependable ranker, and no longer a better one on average.
 - **C3 specificity — FAIL**, both floors. Critic seeds 50 / 67 / 67% vs the
   0.722 relative floor and 0.667 absolute; a clean PR flagged "High" on ~40% of
   cases.
@@ -584,19 +590,68 @@ keeping an audit trail — but in the gate it did not beat the direct call (stri
 56% vs 67%, recall 22% vs 33%, root-cause 2–3/6 vs 6/6) at ~6× cost. The critic
 is a removed experiment, reproduced with `--second-pass`.
 
-**New hot take.** For triage on this data the model was never short on
-information — one call finds every root cause (6/6). Nothing added on top sorted
-PRs more dependably: the direct call's derived risk score is a fixed formula
-over that one call (AUC 0.76, ±0.02 across seeds), and the adversarial critic
-only trades specificity for recall about one for one. When an agent
-under-commits, a louder critic changes *where* you sit on the ROC curve, not
-*which* curve you're on. The honest agentic win here is the trajectory, not the
-verdict.
+**New hot take.** Forcing the one-call baseline to emit its verdict as a
+structured tool call instead of free-text JSON — same prompt, zero extra cost —
+improved its risk-score separation: derived-score AUC 0.76 → 0.81, triage
+accuracy 66.7 → 75%, and it's now deterministic at temp 0. (Of 5 "Medium"
+hedges it dropped to "Low", 3 were clean cases committing correctly; the other 2
+were risky cases neither config catches — no regression.) If a small model
+hedges, fix the output channel before adding machinery. The machinery didn't
+earn its keep: the investigation loop doesn't beat the direct call, and the
+adversarial critic only trades specificity for recall about one for one
+(+39 pp / −39 pp) while ranking PRs no better on average (AUC 0.78, worst seed
+0.61, vs the direct call's deterministic 0.78). A louder critic changes *where*
+you sit on the ROC curve, not *which* curve you're on.
 
 **Incidental.** `eval/report.ts`'s "invoked directly?" guard compared
 `import.meta.url` to a raw `process.argv[1]` and never matched on Windows, so
 `npm run report` silently did nothing; fixed with `pathToFileURL` while wiring
 the gate.
+
+---
+
+## D21 — The Sonnet reliability fix also sharpened the Haiku baseline
+
+D20's Sonnet probe stalled on output-format failures: the direct call asked the
+model for a bare JSON object as its only text, and Sonnet 5 wraps it past what
+`extractJson` recovers (5/12 errored; `--deep` also hit 2/12 non-termination).
+The fix — force the same `submit_review` tool call the agent path already uses
+(`forceTool` → Anthropic `tool_choice`), text-JSON kept as a fallback — cleared
+all 7: a Sonnet smoke test on the 5 previously-failing direct-call cases
+returned 5/5 valid reviews, RC 4/4.
+
+**Side effect on Haiku (3 seeds, now deterministic).** The port is not
+output-format-only. Forcing the schema makes Haiku commit where the free-text
+path hedged:
+
+| | pre-port | post-port |
+|---|---|---|
+| strict / recall / spec / RC | 66.7% / 33% / 100% / 6/6 | unchanged |
+| triage bal. acc | 66.7% | **75.0%** |
+| AUC (model / derived) | 0.63 / 0.76 | **0.78 / 0.81** |
+| Brier (model / derived) | 0.315 / 0.205 | 0.310 / **0.261** |
+| label mix | 2 Low / 8 Med / 2 High | **7 Low / 3 Med / 2 High** |
+
+Five cases dropped Medium → Low: c07, c09, c10 (clean, committing correctly) and
+c01, c05 (risky, uncaught by either config — no metric regression). Strict "High
+vs not-High" is untouched; risk-score separation and the Medium-band metrics
+improve, except derived-score Brier, which regresses +0.056 — the derived
+score's fixed severity weights are now slightly mis-tuned for a less-hedgy
+findings mix (a one-line calibration fix, not chased this cycle).
+
+**Gate re-verified.** Re-ran the 3 baseline seeds post-port; spot-checked
+`--deep` (1 seed) — inside the pre-port gate-abl4 range on every metric
+(`forceTool` only fires on a blown step budget, which no Haiku case hits), so
+the `--deep` / critic gate seeds were kept as-is. Verdict unchanged and
+**stronger**: the critic's model-score AUC mean (0.78) now only *ties* the
+ported direct call instead of beating it, and its worst seed (0.61) is far below
+the direct call's deterministic 0.78. FAIL 2/3 (C2 now fails on the mean too;
+C3 unchanged; C1 recall still passes).
+
+**Prescriptive takeaway.** Before an investigation loop or a critic to make a
+hedgy small model commit: change its output channel. A forced structured tool
+call beat free-text JSON on decisiveness and ranking (AUC +0.05, triage +8 pp)
+at zero cost, prompt unchanged.
 
 ---
 

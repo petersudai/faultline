@@ -31,7 +31,7 @@ apparent recall win did not survive that gate — see *Removed experiments* and
 
 | # | Stage | Capability added | strict | triage | recall | spec | RC | $/PR |
 |---|-------|------------------|:------:|:------:|:------:|:----:|:--:|:----:|
-| 0 | **baseline — the shipped product** | one call: PR title + body + diff → findings + risk score; deterministic label | 66.7% | 66.7% | 33% | 100% | 6/6 | $0.007 |
+| 0 | **baseline — the shipped product** | one call: PR title + body + diff → findings + risk score via forced `submit_review` tool call; deterministic label | 66.7% | 75.0% | 33% | 100% | 6/6 | $0.006 |
 | 1 | baseline-plus | + full text of the changed files (still one call) | 66.7% | 58.3% | 33% | 100% | 6/6 | $0.021 |
 | 2 | abl-1-read † | agent loop; tools: get_diff, read_file; no verify | 50.0% | 50.0% | 17% | 83% | 5/6 | $0.051 |
 | 3 | abl-2-callers † | + find_references | 58.3% | 41.7% | 17% | 100% | 2/6 | $0.041 |
@@ -47,9 +47,10 @@ failures each (scored Low), and are directional only.
 The shipped pipeline is **row 0** (the direct call); **row 5** is available as
 `--deep` for the trajectory trace. **Row R** — the adversarial critic — failed
 the gate: recall passed (+50 pp over row 5), but specificity fell 89% → 61% and
-the model-score AUC (0.78 mean) swung 0.61–0.97 across the 3 seeds, one below
-the direct call's 0.63. Details under *Removed experiments*; the reversal of the
-earlier "second pass is the win" claim in `DESIGN_LOG.md` D20.
+the model-score AUC (0.78 mean) swung 0.61–0.97 across the 3 seeds — level with
+the direct call's 0.78 on the mean, worst seed far below. Details under *Removed
+experiments*; the reversal of the earlier "second pass is the win" claim in
+`DESIGN_LOG.md` D20.
 
 ## What each capability bought
 
@@ -63,23 +64,27 @@ earlier "second pass is the win" claim in `DESIGN_LOG.md` D20.
 - **The adversarial critic pass (row R):** raises recall on reverts (22% → 72%
   vs row 5) but raises clean-PR false alarms in step (specificity 89% → 61%),
   and its model-score AUC — 0.78 mean — swings 0.61–0.97 across the 3 gate
-  seeds, one below the direct call's 0.63. Failed the pre-registered gate; not
-  shipped.
+  seeds, level with the direct call's mean and worst seed far below. Failed the
+  pre-registered gate; not shipped.
 - **critic-only** (adversarial pass with no investigation loop) scored 50% /
   RC 2/6 — see *Removed experiments* #3.
 
 ## What the ablation showed
 
 No single capability is a clean win.
-- **The direct call (row 0) is strong** — 66.7% strict, 6/6 root-cause, AUC 0.76
-  on the derived risk score, $0.007/PR. The model finds the problems; it just
-  needs the prompt to make it commit.
+- **The direct call (row 0) is strong** — 66.7% strict, 6/6 root-cause, AUC 0.81
+  on the derived risk score (deterministic at temp 0), $0.006/PR. Forcing
+  structured tool output instead of free-text JSON — same prompt — improved its
+  risk-score separation (derived AUC 0.76 → 0.81, triage 66.7 → 75%): of 5
+  "Medium" hedges it dropped to "Low", 3 were clean cases committing correctly
+  and 2 were risky cases neither config catches (no regression). At no cost.
 - **The investigation loop (rows 2–5) degrades it** — flat-to-worse on strict
   accuracy, ~6× the cost, and root-cause localisation drops (6/6 → 2–3/6) as
   attention shifts to tool output. Kept as `--deep` for the trajectory only.
 - **The critic (row R) shifts the operating point, it doesn't lift the curve** —
   +39 pp recall / −39 pp specificity vs the direct call, roughly one for one,
-  with no gain in how dependably the risk score ranks PRs. Removed.
+  and its risk score ranks PRs no better than the direct call's (AUC 0.78 mean,
+  level). Removed.
 
 ## Removed experiments
 
@@ -103,16 +108,17 @@ No single capability is a clean win.
 
    | | strict acc | recall (revert→High) | specificity | AUC model | AUC derived | $/PR |
    |---|---|---|---|---|---|---|
-   | direct call | 66.7% | 33% | 100% | 0.63 | 0.76 | $0.007 |
+   | direct call | 66.7% | 33% | 100% | 0.78 | 0.81 | $0.006 |
    | loop, no critic (shipped `--deep`) | 55.6% | 22% | 89% | 0.55 | 0.57 | $0.041 |
    | loop + critic | 66.7% (58–75) | **72%** (67–83) | 61% (50–67) | 0.78 (0.61–0.97) | 0.69 (0.61–0.81) | $0.042 |
 
    - **C1 recall — pass.** +50 pp over the loop, worst seed 67%.
-   - **C2 ranking — fail.** The critic's model-score AUC averages higher (0.78)
-     but swings 0.61–0.97 across seeds, and its worst seed (0.61) falls below
-     the direct call's 0.63. The direct call's *derived* score is a fixed
-     formula over one temperature-0 call — 0.76, within 0.02 across seeds. Not a
-     more dependable ranker, just a noisier high.
+   - **C2 ranking — fail.** The critic's model-score AUC (0.78 mean) no longer
+     clears the ported direct call's — also 0.78, and deterministic — and its
+     worst seed (0.61) sits far below it. The direct call's *derived* score is a
+     fixed formula over one temperature-0 structured call: 0.81, identical
+     across seeds. Not a more dependable ranker, and no longer a better one on
+     average.
    - **C3 specificity — fail**, both floors: 61% mean, a clean PR flagged "High"
      on ~40% of cases.
 
@@ -125,13 +131,18 @@ No single capability is a clean win.
    prints); `results/summary.md` pools all 36 observations and lands within
    0.01._
 
-## Cross-model check — not completed
+## Cross-model check — output-format bug fixed; 1-seed probe
 
-`baseline-sonnet` and `agent-sonnet` (claude-sonnet-5) hit reliability issues we
-ran out of budget to fix: the baseline path emits its answer as text JSON, which
-Sonnet 5 wraps in a way that defeats extraction (5/12 parse failures); the
-Sonnet agent also failed to terminate on 3/12 and cost $0.12/PR. Generalisation
-to a stronger model is a **stated limitation**, not a claim.
+The first attempt stalled on reliability: the direct call emitted its answer as
+free-text JSON, which Sonnet 5 wraps past what `extractJson` recovers (5/12
+errored), and the Sonnet agent failed to terminate on 2–3/12. The direct call
+now emits via a forced `submit_review` tool call (D21) — a 5-case Sonnet smoke
+test on the previously-failing cases returned 5/5 valid reviews.
+
+A pre-registered 1-seed Sonnet probe (`scripts/probe-sonnet.sh`, direct vs
+`--deep`, `eval/probe-verdict.ts` for the decision) is the cross-model data
+point. **Result: _(pending — one line, whatever the verdict; no 3-seed gate)_.**
+Generalisation to a stronger model remains a **stated limitation**, not a claim.
 
 ## Main failure mode (survives the final config)
 
@@ -145,10 +156,15 @@ running the code in that environment.
 
 ## Hot take
 
-For triage on this data the model was never short on information — one call
-finds every root cause (6/6). Nothing added on top sorted PRs more dependably:
-the direct call's derived risk score is a fixed formula over that one call
-(AUC 0.76, ±0.02 across seeds), and the adversarial critic only trades
-specificity for recall about one for one. When an agent under-commits, a louder
-critic changes *where* you sit on the ROC curve, not *which* curve you're on.
-The honest agentic win here is the trajectory, not the verdict.
+**Forcing the one-call baseline to emit its verdict as a structured tool call
+instead of free-text JSON — same prompt, zero extra cost — improved its
+risk-score separation: derived-score AUC 0.76 → 0.81, triage accuracy
+66.7 → 75%, and it's now deterministic at temp 0. (Of 5 "Medium" hedges it
+dropped to "Low", 3 were clean cases committing correctly; the other 2 were
+risky cases neither config catches — no regression.) If a small model hedges,
+fix the output channel before adding machinery.** The machinery didn't earn its
+keep: the investigation loop doesn't beat the direct call, and the adversarial
+critic only trades specificity for recall about one for one (+39 pp / −39 pp)
+while ranking PRs no better on average (AUC 0.78, worst seed 0.61, vs the direct
+call's deterministic 0.78). A louder critic changes *where* you sit on the ROC
+curve, not *which* curve you're on.

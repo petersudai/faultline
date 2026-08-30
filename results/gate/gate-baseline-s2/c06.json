@@ -9,59 +9,51 @@
     "additions": 141,
     "deletions": 30
   },
-  "summary": "This PR reorders parameters in the `compose` function (swapping `onError` and `onNotFound` positions) and implements error handler propagation when sub-apps are mounted via `app.route()`. The main risk is that the parameter reordering is a breaking change to the `compose` API that could silently break callers passing positional arguments.",
+  "summary": "This PR reorders the `compose()` function parameters to prioritize `onError` before `onNotFound`, and implements custom errorHandler propagation when sub-apps are mounted via `app.route()`. The change allows sub-apps to use their own error handlers instead of always falling back to the parent app's handler. The main risk is the parameter reordering is a breaking change to the `compose()` API that could affect external callers.",
   "findings": [
     {
       "severity": "high",
       "file": "src/compose.ts",
       "line": 12,
       "category": "breaking-change",
-      "rationale": "The `compose` function signature changed from `(middleware, onNotFound?, onError?)` to `(middleware, onError?, onNotFound?)`. This is a breaking change for any external callers using positional arguments. While the PR updates internal call sites and tests, external consumers of this exported function will silently pass the wrong handler to the wrong parameter.",
-      "suggestedCheck": "Verify whether `compose` is part of the public API or only internal. If public, this requires a major version bump and migration guide. Check if there are any external packages or examples that call `compose` directly."
-    },
-    {
-      "severity": "medium",
-      "file": "src/hono.ts",
-      "line": 124,
-      "category": "api-contract",
-      "rationale": "The logic `app.errorHandler === errorHandler` uses reference equality to detect whether a sub-app has a custom error handler. This is fragile: if a sub-app's errorHandler is reassigned or if the default `errorHandler` function reference changes (e.g., due to module reloading or bundling), the comparison will fail and the custom handler won't be wrapped. The test at line 960 shows the expected behavior, but the implementation is brittle.",
-      "suggestedCheck": "Consider adding a flag (e.g., `_hasCustomErrorHandler`) to track whether a custom error handler was set, rather than relying on reference equality. Verify this works correctly across different bundling/module scenarios."
+      "rationale": "The `compose()` function signature changes the parameter order from `(middleware, onNotFound?, onError?)` to `(middleware, onError?, onNotFound?)`. This is a breaking change for any external code calling `compose()` directly with positional arguments. While the PR updates internal call sites and tests, external consumers of this exported function will break silently if they pass handlers positionally.",
+      "suggestedCheck": "Verify that `compose()` is not part of the public API or document this as a breaking change. If it is public, consider using named parameters or a deprecation period. Check if there are any external packages depending on the old signature."
     },
     {
       "severity": "medium",
       "file": "src/hono.ts",
       "line": 124,
       "category": "unhandled-edge-case",
-      "rationale": "When wrapping a route handler with `compose([r.handler], app.errorHandler)`, the composed function is expected to catch errors from `r.handler` and pass them to `app.errorHandler`. However, if `r.handler` is async and rejects, the error handling depends on the `compose` implementation correctly catching and forwarding the error. The test at line 960 covers this, but there's no explicit verification that async errors in sub-app handlers are caught and routed to the sub-app's error handler.",
-      "suggestedCheck": "Manually trace through the `compose` function to confirm it properly catches errors from async middleware and invokes the error handler. Verify the test at line 960 (`sub.get('/error')`) actually exercises the error path."
+      "rationale": "The logic `app.errorHandler === errorHandler` uses reference equality to detect if a sub-app has a custom error handler. However, if a user explicitly assigns the default `errorHandler` function to their sub-app's errorHandler property, this check will fail and the custom handler won't be wrapped. This is a subtle edge case where the behavior depends on implementation details rather than explicit configuration.",
+      "suggestedCheck": "Consider adding a flag or property to track whether an errorHandler was explicitly set by the user, rather than relying on reference equality. Alternatively, document this behavior clearly."
     },
     {
       "severity": "medium",
       "file": "src/hono.ts",
-      "line": 113,
-      "category": "test-gap",
-      "rationale": "The new test for `notFound` at line 980 expects `/sub/implicit-404` to be handled by the app's notFound handler, not the sub-app's. However, the PR only implements error handler propagation, not notFound handler propagation. The test may pass for the wrong reason (default behavior), but the comment suggests an expectation that isn't explicitly implemented.",
-      "suggestedCheck": "Verify that the notFound test expectations are correct. If sub-app notFound handlers should also be propagated (like errorHandlers), implement that logic. If not, clarify why errorHandler and notFound are treated differently."
+      "line": 123,
+      "category": "missing-caller-update",
+      "rationale": "The `route()` method now wraps handlers with `compose()` when a sub-app has a custom errorHandler, but this wrapping only applies to the route handler itself. If the sub-app has middleware that throws errors, those errors may not be caught by the sub-app's errorHandler in all cases, leading to inconsistent error handling behavior between direct sub-app requests and mounted sub-app requests.",
+      "suggestedCheck": "Verify that error handling works consistently for all middleware in the sub-app, not just the final route handler. Add tests that throw errors from middleware at different levels."
     },
     {
       "severity": "low",
-      "file": "src/compose.test.ts",
-      "line": 158,
-      "category": "test-gap",
-      "rationale": "Test updates pass `undefined` as the second parameter (onError) when only onNotFound is needed. While this works, it's not explicit about the parameter order change. A comment explaining the parameter reordering would help reviewers and future maintainers.",
-      "suggestedCheck": "Consider adding a comment in the test file or compose.ts documenting why the parameter order was changed and the migration path for callers."
+      "file": "src/hono.ts",
+      "line": 66,
+      "category": "other",
+      "rationale": "The default `errorHandler` and `notFoundHandler` are now module-level constants instead of instance methods. This means all Hono instances share the same function reference for defaults. While this is fine for the default behavior, it could be confusing if someone tries to monkey-patch or override these at the instance level.",
+      "suggestedCheck": "Ensure documentation clarifies that these are shared defaults and that custom handlers should be set via `onError()` and `notFound()` methods."
     }
   ],
   "risk": "High",
-  "modelRiskScore": 0.62,
-  "derivedRiskScore": 0.8196,
+  "modelRiskScore": 0.35,
+  "derivedRiskScore": 0.7595,
   "meta": {
     "mode": "gate-baseline-s2",
     "model": "claude-haiku-4-5-20251001",
-    "inputTokens": 4053,
-    "outputTokens": 1067,
-    "costUsd": 0.009388,
-    "wallMs": 13027,
+    "inputTokens": 24,
+    "outputTokens": 883,
+    "costUsd": 0.0049172,
+    "wallMs": 10728,
     "toolCalls": 0
   }
 }

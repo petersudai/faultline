@@ -27,9 +27,10 @@ Usage:
   faultline <owner/repo> <pr-number> [options]
 
 Modes:
-  (default)   Direct call — one engineered model call on the diff. The product,
-              and the best config in our ablation: derived-score AUC 0.76,
-              6/6 root-cause, ~$0.007/PR.
+  (default)   Direct call — one engineered model call, emitted as a forced
+              submit_review tool call. The product, and the best config in our
+              ablation: derived-score AUC 0.81 (deterministic at temp 0), 6/6
+              root-cause, ~$0.006/PR.
   --deep      Runs the review as an investigation loop (get_diff, read_file,
               get_related_tests) + a verify pass, writing every model and tool
               call to trajectories/. Use it when you need the worked record —
