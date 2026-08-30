@@ -14,29 +14,65 @@ interface Args {
   pr: number | undefined;
   offline: boolean;
   dryRun: boolean;
-  mode: "baseline" | "agent";
+  help: boolean;
+  /** "direct" = one engineered call (the product); "deep" = the tool loop */
+  mode: "direct" | "deep";
+  /** removed experiment: add the adversarial critic pass to --deep */
+  secondPass: boolean;
 }
+
+const HELP = `faultline — pre-merge risk triage for a pull request
+
+Usage:
+  faultline <owner/repo> <pr-number> [options]
+
+Modes:
+  (default)   Direct call — one engineered model call on the diff. The product,
+              and the best config in our ablation: derived-score AUC 0.76,
+              6/6 root-cause, ~$0.007/PR.
+  --deep      Runs the review as an investigation loop (get_diff, read_file,
+              get_related_tests) + a verify pass, writing every model and tool
+              call to trajectories/. Use it when you need the worked record —
+              to show a reviewer why a PR was flagged, or to keep an audit
+              trail. It did not beat the direct call in our 3-seed gate
+              (strict 56% vs 67%, recall 22% vs 33%, root-cause 2-3/6 vs 6/6)
+              and costs ~6x.
+  --second-pass   (with --deep) Adds the adversarial critic pass, a removed
+              experiment. Raises recall on reverts (33% -> 72%) and clean-PR
+              false alarms in step (specificity 100% -> 61%); failed the
+              pre-registered gate. Kept to reproduce that result.
+
+Options:
+  --offline   Use the committed .cache/ fixtures; no network.
+  --dry-run   Print resolved config and exit.
+  -h, --help  This text.`;
 
 function parseArgs(argv: string[]): Args {
   const a = argv.slice(2);
-  const flags = new Set(a.filter((x) => x.startsWith("--")));
-  const pos = a.filter((x) => !x.startsWith("--"));
+  const flags = new Set(a.filter((x) => x.startsWith("--") || x === "-h"));
+  const pos = a.filter((x) => !x.startsWith("-"));
   return {
     repo: pos[0],
     pr: pos[1] ? Number(pos[1]) : undefined,
     offline: flags.has("--offline"),
     dryRun: flags.has("--dry-run"),
-    mode: flags.has("--agent") ? "agent" : "baseline",
+    help: flags.has("--help") || flags.has("-h"),
+    // --agent kept as a back-compat alias for --deep
+    mode: flags.has("--deep") || flags.has("--agent") ? "deep" : "direct",
+    secondPass: flags.has("--second-pass"),
   };
 }
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv);
 
+  if (args.help) {
+    console.log(HELP);
+    return;
+  }
+
   if (!args.repo || !args.pr || !/^[^/\s]+\/[^/\s]+$/.test(args.repo)) {
-    console.error(
-      "Usage: faultline <owner/repo> <pr-number> [--agent] [--offline] [--dry-run]",
-    );
+    console.error(HELP);
     process.exit(2);
     return;
   }
@@ -66,7 +102,7 @@ async function main(): Promise<void> {
   const getDiff = (path?: string) => gh.getDiff(owner, repo, args.pr!, path);
   let review;
 
-  if (args.mode === "agent") {
+  if (args.mode === "deep") {
     console.error("Checking out base + head …");
     const checkout = ensureCheckout(owner, repo, meta.baseSha, meta.headSha, cfg.githubToken);
     const llm = new LlmClient({ apiKey: cfg.anthropicApiKey, model: cfg.model });
@@ -74,7 +110,9 @@ async function main(): Promise<void> {
       "trajectories",
       `${owner}-${repo}-${args.pr}-${Date.now()}`,
     );
-    console.error(`Reviewing (agent, ${cfg.model}) …`);
+    console.error(
+      `Reviewing (deep${args.secondPass ? "+critic" : ""}, ${cfg.model}) …`,
+    );
     review = await runAgent(meta, {
       llm,
       repo: { dir: checkout.dir },
@@ -83,11 +121,13 @@ async function main(): Promise<void> {
       changedFiles,
       logger,
       verify: true,
-      secondPass: true, // final config: investigate -> verify -> adversarial pass -> classify
+      // shipped --deep = investigate -> verify -> classify. The critic
+      // (--second-pass) is a removed experiment; see src/agent/prompts.ts.
+      secondPass: args.secondPass,
     });
   } else {
     const diff = await getDiff();
-    console.error(`Reviewing (baseline, ${cfg.model}) …`);
+    console.error(`Reviewing (direct call, ${cfg.model}) …`);
     review = await runBaseline({
       meta,
       diff,

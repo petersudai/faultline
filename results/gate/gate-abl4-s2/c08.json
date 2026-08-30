@@ -1,0 +1,26 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3849,
+    "title": "fix(factory): correct the type of `factory.createMiddleware()`",
+    "baseSha": "3fba7a5e7d92cdb69c817dd15702508812305171",
+    "headSha": "dbfe2477ffdcb2eedf372ed32dd50b204aceb903",
+    "filesChanged": 2,
+    "additions": 43,
+    "deletions": 21
+  },
+  "summary": "This PR improves type safety in the Factory class by: (1) adding explicit return type annotation to `createMiddleware()` method, (2) changing default type parameters from `any` to `Env` and `string` for better type inference, and (3) reorganizing tests with nested describe blocks and adding a new test case for `createMiddleware` schema type inference. These are type-level changes with no runtime behavior impact.",
+  "findings": [],
+  "risk": "Low",
+  "modelRiskScore": 0.05,
+  "derivedRiskScore": 0,
+  "meta": {
+    "mode": "gate-abl4-s2",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 7497,
+    "outputTokens": 1544,
+    "costUsd": 0.02396515,
+    "wallMs": 20937,
+    "toolCalls": 6
+  }
+}

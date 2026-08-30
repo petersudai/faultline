@@ -1,0 +1,35 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 4707,
+    "title": "perf(context): add fast path to c.json() matching c.text() optimization",
+    "baseSha": "69f303e0c3a45c09e7ec56611973751208737857",
+    "headSha": "a32bdde71473f1534789d0b11ea0eae710e611f7",
+    "filesChanged": 1,
+    "additions": 14,
+    "deletions": 6
+  },
+  "summary": "This PR adds a fast path optimization to `c.json()` that mirrors the existing optimization in `c.text()`. When no status, headers, prepared headers, or finalized state exist, it uses the standard `Response.json()` API directly instead of going through the full `#newResponse()` path. The change is low-risk because the fast path only triggers in the simplest case (no parameters beyond the object), and `Response.json()` is a standard Web API with well-defined behavior equivalent to the old path.",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/context.ts",
+      "line": null,
+      "category": "test-gap",
+      "rationale": "The existing test for `c.json()` includes status and headers parameters, which means it uses the slow path and doesn't exercise the new fast path optimization. There is no test for the simple case `c.json({ ... })` with no parameters, which is the most common use case and the primary target of this optimization.",
+      "suggestedCheck": "Add a test case for `c.json()` with only the object parameter to verify the fast path produces correct output (status 200, Content-Type: application/json, correct body)."
+    }
+  ],
+  "risk": "Low",
+  "modelRiskScore": 0.05,
+  "derivedRiskScore": 0.05,
+  "meta": {
+    "mode": "gate-abl4-s2",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 7093,
+    "outputTokens": 2461,
+    "costUsd": 0.0249229,
+    "wallMs": 35088,
+    "toolCalls": 7
+  }
+}

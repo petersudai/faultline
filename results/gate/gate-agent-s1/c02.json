@@ -1,0 +1,59 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 4198,
+    "title": "fix(etag): fallback if `res.clone()` is not supported",
+    "baseSha": "53656e126df4855969afa55603cd063343d65552",
+    "headSha": "6f22acef362356c58ce071eaae9decea6ac1d6a4",
+    "filesChanged": 3,
+    "additions": 44,
+    "deletions": 11
+  },
+  "summary": "This PR adds fallback handling for environments where `res.clone()` fails (e.g., AWS Lambda) by reading the response as an ArrayBuffer instead. However, the fallback path calls the digest generator once with the complete buffer, while the normal path streams chunks and calls the generator incrementally. For streaming hash algorithms, these produce different ETag values for identical content, breaking cache validation.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "src/middleware/etag/digest.ts",
+      "line": 20,
+      "category": "api-contract",
+      "rationale": "The function signature now accepts `ArrayBuffer | ReadableStream`, but the two branches call `generator()` with fundamentally different semantics: ArrayBuffer path calls it once with complete data; streaming path calls it multiple times with accumulated results via mergeBuffers(). For cryptographic hash generators (the typical use case), these produce different digests. The function's contract is broken—callers cannot rely on consistent output for the same input data.",
+      "suggestedCheck": "Verify that a SHA-256 or similar streaming hash generator produces identical digests when fed (a) one call with complete Uint8Array vs. (b) multiple calls with accumulated mergeBuffers() results. If they differ, refactor to always accumulate chunks first, then call generator once."
+    },
+    {
+      "severity": "high",
+      "file": "src/middleware/etag/index.ts",
+      "line": 96,
+      "category": "breaking-change",
+      "rationale": "The fallback at line 101–103 reads the entire response body into memory and passes it as ArrayBuffer to generateDigest(). For the same response body, this produces a different ETag than the normal streaming path (line 96) because generateDigest() now has two incompatible code paths. A response that hits the fallback will have a different ETag than if clone() had succeeded, violating HTTP cache semantics and potentially causing 304 Not Modified mismatches.",
+      "suggestedCheck": "Create a test that generates the same response body twice: once via normal clone() path and once via fallback (by mocking clone() to throw). Verify both produce identical ETag values. If they differ, this is a cache-breaking bug."
+    },
+    {
+      "severity": "high",
+      "file": "src/middleware/etag/index.ts",
+      "line": 103,
+      "category": "data-loss",
+      "rationale": "After calling `await res.arrayBuffer()`, the response body is consumed and cannot be read again. Line 103 creates a new Response from the buffer, but the original `res` object's body is now exhausted. If any downstream middleware or handler tries to read `c.res.body` after this point, it will get an empty stream. The assignment `c.res = new Response(buffer, res)` copies headers but does not preserve all response properties, risking silent data loss.",
+      "suggestedCheck": "Verify that after the fallback path executes, the response body can still be read by downstream handlers. Test that `await c.res.text()` or similar returns the full content, not an empty string."
+    },
+    {
+      "severity": "medium",
+      "file": "src/middleware/etag/index.test.ts",
+      "line": 158,
+      "category": "test-gap",
+      "rationale": "The new test verifies that a response is generated and an ETag is present, but does not verify that the ETag value is correct or consistent. It does not compare the fallback-path ETag against the normal-path ETag for identical content. This test would pass even if the fallback produces a different ETag, leaving the cache-breaking bug undetected.",
+      "suggestedCheck": "Add a test that generates the same response body via both normal and fallback paths (by mocking clone() to throw in one case) and asserts that both produce identical ETag header values."
+    }
+  ],
+  "risk": "High",
+  "modelRiskScore": 0.78,
+  "derivedRiskScore": 0.9317,
+  "meta": {
+    "mode": "gate-agent-s1",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 10351,
+    "outputTokens": 7876,
+    "costUsd": 0.0542485,
+    "wallMs": 91301,
+    "toolCalls": 7
+  }
+}

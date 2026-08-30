@@ -1,0 +1,51 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 4198,
+    "title": "fix(etag): fallback if `res.clone()` is not supported",
+    "baseSha": "53656e126df4855969afa55603cd063343d65552",
+    "headSha": "6f22acef362356c58ce071eaae9decea6ac1d6a4",
+    "filesChanged": 3,
+    "additions": 44,
+    "deletions": 11
+  },
+  "summary": "This PR adds a fallback for environments where `res.clone()` fails (e.g., AWS Lambda), but the fallback path produces a different ETag than the normal path for identical content. The streaming path accumulates chunks and calls the generator multiple times, while the fallback passes the entire buffer at once, breaking ETag consistency and cache validation.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "src/middleware/etag/index.ts",
+      "line": 101,
+      "category": "unhandled-edge-case",
+      "rationale": "The fallback path calls `generateDigest(buffer, generator)` with the entire ArrayBuffer, while the normal path streams and accumulates chunks. For the default SHA-1 generator (which calls `crypto.subtle.digest()` on each chunk and merges results), these produce different hash values. A response that triggers the fallback will have a different ETag than the same response via the normal path, breaking cache validation semantics.",
+      "suggestedCheck": "Verify that `generateDigest(entireBuffer, generator)` produces the same hash as streaming the same buffer in chunks through the normal path. Add a test comparing ETags from both paths for identical content, or refactor to ensure both paths call the generator identically."
+    },
+    {
+      "severity": "high",
+      "file": "src/middleware/etag/index.test.ts",
+      "line": 158,
+      "category": "test-gap",
+      "rationale": "The new test only verifies that an ETag is generated and the response body is correct. It does not verify that the ETag value matches what would be produced by the normal (clone) path. This test gap means the hash inconsistency bug is not caught by the test suite.",
+      "suggestedCheck": "Add a test that generates the same response content via both the normal path (with clone) and the fallback path (without clone), then assert that both produce identical ETag values."
+    },
+    {
+      "severity": "medium",
+      "file": "src/middleware/etag/digest.ts",
+      "line": 20,
+      "category": "unhandled-edge-case",
+      "rationale": "The new ArrayBuffer branch (lines 20–21) calls `generator(new Uint8Array(input))` once with the full buffer, while the streaming branch (lines 23–30) calls the generator multiple times with accumulated results via `mergeBuffers()`. This architectural difference means the two code paths will produce different outputs for the same input data when using the default generator or any generator that depends on incremental hashing.",
+      "suggestedCheck": "Confirm that the generator function is designed to produce identical output whether called once with the full buffer or multiple times with accumulated chunks. If not, refactor to ensure both paths follow the same calling pattern (e.g., accumulate all chunks first, then call generator once)."
+    }
+  ],
+  "risk": "High",
+  "modelRiskScore": 0.75,
+  "derivedRiskScore": 0.8481,
+  "meta": {
+    "mode": "gate-agent-s2",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 10379,
+    "outputTokens": 7646,
+    "costUsd": 0.0531265,
+    "wallMs": 78582,
+    "toolCalls": 7
+  }
+}

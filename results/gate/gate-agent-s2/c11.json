@@ -1,0 +1,67 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3888,
+    "title": "feat(router): support greedy matches with subsequent static components.",
+    "baseSha": "438983b3bb3d459bf9d9d2e5adf1d21a7e6588d8",
+    "headSha": "5f41ceeb32fe23e34a4a5f3f25e4b4b155bcf457",
+    "filesChanged": 6,
+    "additions": 138,
+    "deletions": 29
+  },
+  "summary": "This PR adds lookahead-based matching for greedy regex patterns followed by static path components. The implementation modifies pattern caching, trie-node traversal, and linear-router matching logic. While test coverage is comprehensive, there are unresolved behavioral changes in pattern matching and a critical test exclusion that masks potential regressions.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "src/router/reg-exp-router/router.test.ts",
+      "line": 15,
+      "category": "test-gap",
+      "rationale": "Two test cases from the new 'Capture complex multiple directories' suite are explicitly excluded from RegExpRouter testing. This suggests the RegExpRouter implementation does not support the new lookahead-based matching behavior, creating a divergence between router implementations. The exclusion masks whether this is a known limitation or a regression.",
+      "suggestedCheck": "Verify whether RegExpRouter is intentionally unsupported for greedy patterns with lookahead, or whether its implementation needs updating. If intentional, document why and ensure callers are aware of the limitation."
+    },
+    {
+      "severity": "high",
+      "file": "src/utils/url.ts",
+      "line": 62,
+      "category": "api-contract",
+      "rationale": "The `getPattern` function signature changed from `(label: string)` to `(label: string, next?: string)`, and its return value structure changed when `next` is provided (e.g., `[':id{[0-9]+}#next', 'id', /^[0-9]+(?=\\/next)$/]` vs `[':id{[0-9]+}', 'id', /^[0-9]+$/]`). The first element of the returned tuple is now sometimes a cache key (with `#next` suffix) rather than the original label. This breaks the contract for any code relying on the first tuple element being the original pattern string.",
+      "suggestedCheck": "Audit all callers of `getPattern` to confirm they do not depend on the first tuple element being the original label. Check if the cache key format leaking into the return value causes issues in pattern reconstruction or logging."
+    },
+    {
+      "severity": "high",
+      "file": "src/router/trie-router/node.ts",
+      "line": 49,
+      "category": "unhandled-edge-case",
+      "rationale": "The `key` variable is now derived from `getPattern(p, nextP)`, which can return a cache key like `:id{[0-9]+}#next` instead of the original pattern. This key is used to index `curNode.#children`, but the trie structure was built with the original pattern strings as keys. This mismatch means lookups will fail for patterns with lookahead, and new nodes will be created under incorrect keys, fragmenting the trie.",
+      "suggestedCheck": "Verify that the trie node children are correctly keyed. Add a test that adds the same pattern twice (once with lookahead context, once without) and confirm they resolve to the same node, not duplicates."
+    },
+    {
+      "severity": "medium",
+      "file": "src/router/trie-router/node.ts",
+      "line": 120,
+      "category": "unhandled-edge-case",
+      "rationale": "The new `curNodesQueue` is initialized as an empty array but only populated conditionally inside the regex match block. If a greedy pattern matches but the child node has no further children, the queue remains empty for that iteration. The queue is shifted unconditionally at line 206 (`curNodesQueue.shift() ?? []`), which could cause queue indices to drift if some iterations do not populate their expected slot, leading to nodes being processed at the wrong depth.",
+      "suggestedCheck": "Trace through a scenario where a greedy pattern matches multiple path segments but intermediate nodes have no children. Confirm that `curNodesQueue` indices align correctly with the number of path segments consumed by the regex match."
+    },
+    {
+      "severity": "medium",
+      "file": "src/router/linear-router/router.ts",
+      "line": 89,
+      "category": "unhandled-edge-case",
+      "rationale": "The lookahead is constructed as `(?=${next})` where `next` is `parts[j + 1]`. If `next` contains special regex characters (e.g., `[`, `(`, `.`), they are not escaped, causing the lookahead to be malformed. For example, if the next part is `:id{[0-9]+}`, the lookahead becomes `(?=:id{[0-9]+})`, which is invalid regex syntax.",
+      "suggestedCheck": "Add a test case with a greedy pattern followed by a part containing regex metacharacters (e.g., `/:dirs{.+}/:id{[0-9]+}`). Verify the pattern compiles and matches correctly."
+    }
+  ],
+  "risk": "High",
+  "modelRiskScore": 0.62,
+  "derivedRiskScore": 0.9487,
+  "meta": {
+    "mode": "gate-agent-s2",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 6349,
+    "outputTokens": 4817,
+    "costUsd": 0.0454402,
+    "wallMs": 54132,
+    "toolCalls": 8
+  }
+}

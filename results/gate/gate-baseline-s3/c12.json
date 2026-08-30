@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3833,
+    "title": "fix(compress): don't compress server-sent events",
+    "baseSha": "2a68c594d24c282d0c9f9c286f114acf5019f383",
+    "headSha": "aee7f69dcfc60f379a7830241aa6e82c9db5718f",
+    "filesChanged": 2,
+    "additions": 14,
+    "deletions": 2
+  },
+  "summary": "This PR fixes a bug where the `compress` middleware was buffering server-sent events (SSE) instead of streaming them. The fix modifies the `COMPRESSIBLE_CONTENT_TYPE_REGEX` to exclude `text/event-stream` MIME type from compression, and adds a test to verify SSE streams are not compressed.",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/middleware/compress/index.test.ts",
+      "line": 168,
+      "category": "test-gap",
+      "rationale": "The test verifies that SSE responses are not compressed (13000 bytes uncompressed), but it doesn't verify that the SSE data is actually streamed correctly or that the client receives the events in real-time. The test only checks the final byte length, which could pass even if streaming behavior is broken.",
+      "suggestedCheck": "Consider adding a test that verifies SSE events are received incrementally/streamed, not buffered until the end. This could involve checking response headers or simulating a streaming client."
+    },
+    {
+      "severity": "low",
+      "file": "src/utils/compress.ts",
+      "line": 10,
+      "category": "other",
+      "rationale": "The regex change uses a negative lookahead `(?!event-stream(?:[;\\s]|$))` to exclude `text/event-stream`. While this appears correct, the regex is complex and difficult to verify by inspection. A subtle regex error could cause unintended compression or non-compression of other content types.",
+      "suggestedCheck": "Manually verify the regex logic: (1) confirm `text/event-stream` is excluded, (2) confirm `text/event-stream; charset=utf-8` is also excluded, (3) confirm other `text/*` types like `text/html` are still matched for compression."
+    }
+  ],
+  "risk": "Low",
+  "modelRiskScore": 0.08,
+  "derivedRiskScore": 0.0975,
+  "meta": {
+    "mode": "gate-baseline-s3",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 1862,
+    "outputTokens": 475,
+    "costUsd": 0.004237,
+    "wallMs": 5957,
+    "toolCalls": 0
+  }
+}

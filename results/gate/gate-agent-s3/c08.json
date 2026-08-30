@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3849,
+    "title": "fix(factory): correct the type of `factory.createMiddleware()`",
+    "baseSha": "3fba7a5e7d92cdb69c817dd15702508812305171",
+    "headSha": "dbfe2477ffdcb2eedf372ed32dd50b204aceb903",
+    "filesChanged": 2,
+    "additions": 43,
+    "deletions": 21
+  },
+  "summary": "This PR tightens type safety in the Factory class by replacing `any` defaults with `Env` and `string`, adding an explicit return type to `createMiddleware()`, and adding a type-verification test. The changes are backward compatible at runtime but may expose previously-hidden type mismatches in existing code that relied on the permissive `any` defaults.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/helper/factory/index.ts",
+      "line": 286,
+      "category": "breaking-change",
+      "rationale": "Changing default type parameters from `any` to `Env` and `string` is a type-level breaking change. Code that instantiated `Factory` or called `createFactory` without explicit type arguments and relied on the permissive `any` inference may now fail type-checking. For example, `createFactory()` previously accepted any `Env` type implicitly; now it defaults to the base `Env` type, which may not match callers' actual environment shapes.",
+      "suggestedCheck": "Search the codebase for all `createFactory()` and `new Factory()` calls without explicit type arguments. Verify that none of them pass environment objects or path patterns that would violate the new `Env` and `string` constraints. Run the full test suite and type-check to catch any regressions."
+    },
+    {
+      "severity": "low",
+      "file": "src/helper/factory/index.test.ts",
+      "line": 363,
+      "category": "test-gap",
+      "rationale": "The new `createMiddleware` type-verification test uses `Expect<Equal<...>>` to assert type equality but does not actually execute or assert anything at runtime—it only verifies types at compile time. If the type assertion fails, the test will not run (it will fail to compile), which is correct for a type test, but there is no explicit documentation or comment explaining this pattern to future maintainers.",
+      "suggestedCheck": "Confirm that the type-level test is intentional and that the test suite is configured to catch type errors during CI (e.g., via `tsc --noEmit` or similar). Consider adding a brief comment above the `type verify = ...` line explaining that this is a compile-time type assertion."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.15,
+  "derivedRiskScore": 0.2875,
+  "meta": {
+    "mode": "gate-agent-s3",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 9666,
+    "outputTokens": 2336,
+    "costUsd": 0.032855199999999994,
+    "wallMs": 32021,
+    "toolCalls": 7
+  }
+}

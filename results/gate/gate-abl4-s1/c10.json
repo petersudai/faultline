@@ -1,0 +1,35 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3832,
+    "title": "feat(etag): allow for custom hashing methods to be used to etag",
+    "baseSha": "6837649cd104b1886e6cb6653bf26d0700c4c3e6",
+    "headSha": "8fc6cfd20d261e44cb2adacfb0d2d9664f6c80b0",
+    "filesChanged": 3,
+    "additions": 50,
+    "deletions": 9
+  },
+  "summary": "This PR adds support for custom hashing methods in the ETag middleware by introducing an optional `generateDigest` parameter. The implementation preserves backward compatibility by defaulting to SHA-1 when no custom generator is provided. The PR includes tests for the new feature with SHA-256. However, there is a test gap: the new custom generator feature is not tested for the 304 conditional GET response case, only for normal 200 responses.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/middleware/etag/index.test.ts",
+      "line": 23,
+      "category": "test-gap",
+      "rationale": "The new test for custom digest generation (SHA-256) only verifies the 200 response case (lines 43-53). It does not test the 304 conditional GET scenario where the custom generator is used with If-None-Match headers. The existing 'Should handle conditional GETs' test (line 170) covers 304 responses but only with the default SHA-1 algorithm. This leaves a gap in test coverage for the custom generator path in the 304 response scenario.",
+      "suggestedCheck": "Add a test case that uses the custom generateDigest option and verifies the 304 Not Modified response is correctly generated with the custom hash algorithm when If-None-Match headers match."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.15,
+  "derivedRiskScore": 0.25,
+  "meta": {
+    "mode": "gate-abl4-s1",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 4806,
+    "outputTokens": 3913,
+    "costUsd": 0.042448650000000004,
+    "wallMs": 53783,
+    "toolCalls": 6
+  }
+}

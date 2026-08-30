@@ -1,0 +1,51 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3498,
+    "title": "fix(factory): relax Bindings and Variables for `createMiddleware`",
+    "baseSha": "31b4cd414c258db841cce77473615c13fc611d8b",
+    "headSha": "f2e0059be4ac67f910edd2e55c44523486acca21",
+    "filesChanged": 2,
+    "additions": 44,
+    "deletions": 3
+  },
+  "summary": "This PR relaxes TypeScript type constraints for `createMiddleware` by automatically adding `any` to undefined `Bindings` or `Variables` in the Env type. This allows nested middleware with partial type specifications to compose without type errors. The change is primarily a type-level fix with a test case demonstrating the intended behavior.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/helper/factory/index.ts",
+      "line": 254,
+      "category": "api-contract",
+      "rationale": "The signature of `createMiddleware` now transforms the input type `E` into `E2` via `AddAnyToEnv<E>`. This is a subtle breaking change: callers who rely on strict type checking of `Bindings` or `Variables` will now silently accept `any` for undefined fields. While this relaxes constraints (good for composition), it could mask type errors where a caller intended to enforce stricter typing. The transformation happens implicitly without explicit documentation in the function signature.",
+      "suggestedCheck": "Verify that existing code relying on `createMiddleware` with explicit `Bindings` or `Variables` still type-checks as expected. Check if any tests or examples in the codebase depend on strict type rejection for missing Bindings/Variables."
+    },
+    {
+      "severity": "low",
+      "file": "src/helper/factory/index.test.ts",
+      "line": 39,
+      "category": "test-gap",
+      "rationale": "The test is a compile-time type check (no runtime assertions). It verifies that the code compiles without type errors, but does not verify runtime behavior. If the type transformation inadvertently changes how middleware chains execute, this test would not catch it.",
+      "suggestedCheck": "Consider adding a runtime assertion (e.g., checking that `next()` is called, or that context properties are accessible) to ensure the middleware actually executes correctly, not just that it type-checks."
+    },
+    {
+      "severity": "low",
+      "file": "src/helper/factory/index.ts",
+      "line": 244,
+      "category": "other",
+      "rationale": "The `Simplify` utility is imported but its behavior is not documented in the PR. If `Simplify` has edge cases or unexpected behavior with union types or complex nested structures, the type transformation could produce surprising results.",
+      "suggestedCheck": "Confirm that `Simplify` correctly flattens the `AddAnyToEnv` result and does not introduce unintended type aliases or union complications."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.15,
+  "derivedRiskScore": 0.3231,
+  "meta": {
+    "mode": "gate-baseline-s2",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 1829,
+    "outputTokens": 641,
+    "costUsd": 0.005034,
+    "wallMs": 7513,
+    "toolCalls": 0
+  }
+}

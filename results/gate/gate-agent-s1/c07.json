@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3800,
+    "title": "fix(context): single body overrides other returns",
+    "baseSha": "fa6f51bb1b110cddc7dc41cb7e531fab27fe871f",
+    "headSha": "92a1a129e6e9f430f93e35d217a7bd2a324c85cb",
+    "filesChanged": 3,
+    "additions": 36,
+    "deletions": 11
+  },
+  "summary": "This PR adds generic type parameters to the `BodyRespond` interface to track status codes and response types, enabling better type inference in Hono clients. The implementation uses a type cast (`as ReturnType<BodyRespond>`) to bridge the runtime implementation with the new type signatures. While the type-level changes appear sound, the cast introduces a potential type-safety gap that could mask mismatches between actual and declared behavior.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/context.ts",
+      "line": 736,
+      "category": "other",
+      "rationale": "The implementation casts the result of `this.#newResponse()` to `ReturnType<BodyRespond>`. This cast bypasses TypeScript's type checking and assumes that `#newResponse()` always returns a value compatible with the overloaded `BodyRespond` signatures. If `#newResponse()` is later modified or if there are edge cases where it returns an incompatible type, the cast will silently hide the error. The overloaded signatures now promise specific `TypedResponse` metadata that the cast asserts but does not verify.",
+      "suggestedCheck": "Verify that `#newResponse()` implementation actually produces Response objects that satisfy all four overload signatures' return types, particularly that the TypedResponse metadata is correctly attached. Consider whether the cast could be eliminated by refactoring `#newResponse()` to return the properly typed value directly, or add a type guard/assertion that validates the return value matches the declared type."
+    },
+    {
+      "severity": "low",
+      "file": "src/context.test.ts",
+      "line": 154,
+      "category": "test-gap",
+      "rationale": "The test change from `let res = c.body('Hi')` to `const res = c.body('Hi')` followed by `const res2 = c.body('Hi')` appears to be fixing a test bug (the original reassigned `res` to `c.res` instead of calling `c.body()` again). However, this is a behavioral fix to the test itself, not a validation of the new type system. The test now correctly exercises the new typing, but there is no explicit type assertion verifying that the returned value has the expected `TypedResponse` metadata.",
+      "suggestedCheck": "Consider adding an explicit type assertion in the test (e.g., using `expectTypeOf`) to verify that `res` and `res2` have the correct inferred types with status code metadata, similar to the new test in `types.test.ts`."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.25,
+  "derivedRiskScore": 0.2875,
+  "meta": {
+    "mode": "gate-agent-s1",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 9246,
+    "outputTokens": 3210,
+    "costUsd": 0.0429082,
+    "wallMs": 43155,
+    "toolCalls": 11
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3833,
+    "title": "fix(compress): don't compress server-sent events",
+    "baseSha": "2a68c594d24c282d0c9f9c286f114acf5019f383",
+    "headSha": "aee7f69dcfc60f379a7830241aa6e82c9db5718f",
+    "filesChanged": 2,
+    "additions": 14,
+    "deletions": 2
+  },
+  "summary": "This PR prevents compression of Server-Sent Events (SSE) by adding a negative lookahead to the compression regex to exclude text/event-stream. The change is minimal and includes a test, but the test itself has a critical flaw that masks whether the fix actually works.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "src/middleware/compress/index.test.ts",
+      "line": 166,
+      "category": "test-gap",
+      "rationale": "The test calls `testCompression('/sse', 'gzip', null)` with `null` as the third argument (expected compression algorithm). Looking at the test setup, `testCompression` likely applies compression middleware and checks the result. Passing `null` as the expected algorithm suggests the test expects NO compression to occur. However, the assertion `expect((await res.arrayBuffer()).byteLength).toBe(13000)` is a magic number with no explanation of how it was derived or why it proves SSE was not compressed. The test does not verify the Content-Type header, does not compare compressed vs uncompressed sizes, and does not confirm the response body is valid SSE format. This test could pass even if compression were incorrectly applied.",
+      "suggestedCheck": "Verify what `testCompression` does with a `null` third argument. Confirm the test actually validates that the response is uncompressed by either: (1) checking the Content-Encoding header is absent, (2) comparing against a known uncompressed size, or (3) decompressing and verifying the result. The magic number 13000 needs justification."
+    },
+    {
+      "severity": "medium",
+      "file": "src/utils/compress.ts",
+      "line": 10,
+      "category": "other",
+      "rationale": "The regex change adds a negative lookahead `(?!event-stream(?:[;\\s]|$))` after `text/` to exclude text/event-stream. While the intent is clear, the regex is already complex and difficult to parse. The negative lookahead is positioned to reject 'event-stream' specifically, but the pattern `[^;\\s]+` that follows will still match any other text/* type. The fix appears correct for the stated goal, but the regex maintainability is poor and the change increases cognitive load for future reviewers.",
+      "suggestedCheck": "Manually verify the regex matches text/plain, text/html, text/xml but does NOT match text/event-stream or text/event-stream; charset=utf-8. Consider adding a comment explaining the negative lookahead or refactoring for clarity."
+    }
+  ],
+  "risk": "High",
+  "modelRiskScore": 0.65,
+  "derivedRiskScore": 0.6625,
+  "meta": {
+    "mode": "gate-agent-s1",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 9313,
+    "outputTokens": 2709,
+    "costUsd": 0.03041875,
+    "wallMs": 34545,
+    "toolCalls": 9
+  }
+}

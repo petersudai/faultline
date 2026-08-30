@@ -1,0 +1,51 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 871,
+    "title": "feat: use added app's errorHandler",
+    "baseSha": "c335a9272b6fabab5bb4407f1d1a0ae42a0ff5b5",
+    "headSha": "141cb9d18864912b2fffbfd2f278a1d24b6a4c7d",
+    "filesChanged": 6,
+    "additions": 141,
+    "deletions": 30
+  },
+  "summary": "This PR reorders parameters in the `compose` function (swapping `onNotFound` and `onError`), extracts default handlers as module-level constants, and implements a feature to use a sub-app's custom errorHandler when composing routes. While all call sites are updated and tests added, the parameter reordering is a breaking API change that could silently break external callers.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "src/compose.ts",
+      "line": 12,
+      "category": "breaking-change",
+      "rationale": "The `compose` function signature changes the order of optional parameters from `(middleware, onNotFound?, onError?)` to `(middleware, onError?, onNotFound?)`. This is a breaking change for any external code calling `compose` with positional arguments. An external caller passing `compose(handlers, notFoundFn, errorFn)` will now have those handlers swapped with no compile-time error (both are optional and have compatible signatures in many cases), leading to silent behavioral corruption.",
+      "suggestedCheck": "Verify whether `compose` is part of the public API or only internal. If public, this requires a major version bump and migration guide. If internal-only, confirm no external packages depend on this signature."
+    },
+    {
+      "severity": "medium",
+      "file": "src/hono.ts",
+      "line": 124,
+      "category": "unhandled-edge-case",
+      "rationale": "The route composition logic checks `app.errorHandler === errorHandler` to decide whether to wrap the handler. This identity check is fragile: if a sub-app's errorHandler is reassigned after construction (via `app.errorHandler = customHandler`), the check will fail and the custom handler will not be used. The code assumes errorHandler is only set once at initialization.",
+      "suggestedCheck": "Verify that errorHandler is never reassigned after Hono instance creation. Consider adding a flag or method to track whether a custom errorHandler was set, rather than relying on reference equality."
+    },
+    {
+      "severity": "medium",
+      "file": "src/hono.ts",
+      "line": 123,
+      "category": "test-gap",
+      "rationale": "The new route composition logic wraps handlers with `compose([r.handler], app.errorHandler)` only when the sub-app has a custom errorHandler. However, the test at line 960 ('should be handled by sub') expects the sub-app's errorHandler to catch errors thrown inside the sub-app's handler. The wrapping only applies to the handler itself, not to middleware that runs before it. If an error is thrown in middleware outside the wrapped handler, it may not be caught by the sub-app's errorHandler.",
+      "suggestedCheck": "Trace through the execution path: when `sub.get('/error')` throws, does the error propagate through the wrapped handler and get caught by `app.errorHandler` or `sub.errorHandler`? Verify the test actually exercises the intended error boundary."
+    }
+  ],
+  "risk": "High",
+  "modelRiskScore": 0.35,
+  "derivedRiskScore": 0.7469,
+  "meta": {
+    "mode": "gate-agent-s1",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 6090,
+    "outputTokens": 3136,
+    "costUsd": 0.03338,
+    "wallMs": 40483,
+    "toolCalls": 8
+  }
+}

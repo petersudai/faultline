@@ -1,0 +1,35 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 4707,
+    "title": "perf(context): add fast path to c.json() matching c.text() optimization",
+    "baseSha": "69f303e0c3a45c09e7ec56611973751208737857",
+    "headSha": "a32bdde71473f1534789d0b11ea0eae710e611f7",
+    "filesChanged": 1,
+    "additions": 14,
+    "deletions": 6
+  },
+  "summary": "This PR adds a fast path optimization to `c.json()` matching the existing optimization in `c.text()`. When no status, headers, or finalized state exist, it uses `Response.json(object)` directly instead of going through `#newResponse()`. The change is behaviorally equivalent for the common case and follows the same pattern already established for `c.text()`. However, there's no explicit test coverage for the simple `c.json(object)` case that triggers the fast path.",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/context.test.ts",
+      "line": null,
+      "category": "test-gap",
+      "rationale": "The existing test for c.json() at line 64-71 includes status code (201) and custom headers, which prevents the fast path from being exercised. There is no test for the simple case `c.json(object)` without status or headers, which is the common case that the optimization targets.",
+      "suggestedCheck": "Add a test case for `c.json({ message: 'Hello' })` without status or headers to verify the fast path returns the correct Content-Type header and response body."
+    }
+  ],
+  "risk": "Low",
+  "modelRiskScore": 0.15,
+  "derivedRiskScore": 0.05,
+  "meta": {
+    "mode": "gate-abl4-s1",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 7088,
+    "outputTokens": 2606,
+    "costUsd": 0.054753300000000005,
+    "wallMs": 56029,
+    "toolCalls": 9
+  }
+}

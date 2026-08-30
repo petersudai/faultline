@@ -1,0 +1,35 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 1560,
+    "title": "feat(app): `basePath` option for the constructor, deprecate `app.basePath()`",
+    "baseSha": "0e77991429d1eb820db9a95f582bd41e77067691",
+    "headSha": "3767c5374395f1893bf997bb379763fd52f80952",
+    "filesChanged": 9,
+    "additions": 126,
+    "deletions": 85
+  },
+  "summary": "This PR adds a `basePath` constructor option to Hono and deprecates the `app.basePath()` method. The changes include a new `HonoOptions` type, refactoring of the constructor signature, and conversion of the `_basePath` field to a private field using `#basePath` syntax. Tests are added for the new option and existing tests are updated. The PR removes the single-argument `route()` overload that was already deprecated, which is a breaking change but appears intentional.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/hono-base.ts",
+      "line": 147,
+      "category": "breaking-change",
+      "rationale": "The single-argument `route()` overload (e.g., `app.route('/api')`) has been removed. While this was deprecated with a comment stating removal in v4, the PR description does not explicitly mention this breaking change. Code using `app.route('/api')` without a second argument will now fail to compile.",
+      "suggestedCheck": "Verify that the removal of single-argument `route()` is intentional and document it in the PR description. Check if there are any internal or external usages of this pattern that need migration."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.12,
+  "derivedRiskScore": 0.25,
+  "meta": {
+    "mode": "gate-abl4-s2",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 2384,
+    "outputTokens": 6914,
+    "costUsd": 0.08681245,
+    "wallMs": 70078,
+    "toolCalls": 9
+  }
+}

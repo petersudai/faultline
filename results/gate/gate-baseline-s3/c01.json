@@ -1,0 +1,51 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 4707,
+    "title": "perf(context): add fast path to c.json() matching c.text() optimization",
+    "baseSha": "69f303e0c3a45c09e7ec56611973751208737857",
+    "headSha": "a32bdde71473f1534789d0b11ea0eae710e611f7",
+    "filesChanged": 1,
+    "additions": 14,
+    "deletions": 6
+  },
+  "summary": "This PR adds a fast-path optimization to `c.json()` matching the existing optimization in `c.text()`, avoiding unnecessary allocations when no status, headers, or finalized state exist. The change uses `Response.json()` for the fast path instead of manually constructing a Response with inline headers.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/context.ts",
+      "line": 712,
+      "category": "api-contract",
+      "rationale": "The fast path uses `Response.json(object)` which has different behavior than the slow path `this.#newResponse(JSON.stringify(object), ...)`. Response.json() automatically sets Content-Type and may handle serialization differently. The PR description mentions using 'inline header object' but the code uses Response.json() which creates a Headers instance, not a plain object. This contradicts the stated optimization goal and may not achieve the claimed performance benefits in the node-server adapter.",
+      "suggestedCheck": "Verify that Response.json(object) produces identical output (including header type and serialization) as JSON.stringify(object) passed through #newResponse(). Confirm whether Response.json() creates a Headers instance or plain object, and whether this aligns with the node-server adapter's optimization expectations."
+    },
+    {
+      "severity": "medium",
+      "file": "src/context.ts",
+      "line": 660,
+      "category": "other",
+      "rationale": "The new `#useFastPath()` helper method extracts the common condition check, but the fast path for `json()` adds two additional conditions (`!arg && !headers`) that are not part of the helper. This creates an inconsistency: `text()` and `json()` have slightly different fast-path conditions despite using the same helper. If the helper is meant to be the canonical check, it should include all conditions.",
+      "suggestedCheck": "Confirm whether `!arg && !headers` should be part of `#useFastPath()` itself, or document why json() and text() have different additional conditions."
+    },
+    {
+      "severity": "low",
+      "file": "src/context.ts",
+      "line": 712,
+      "category": "test-gap",
+      "rationale": "The PR adds a new code path (fast path for json) but no test changes are shown. The fast path is taken in the common case, so it needs test coverage to ensure it behaves identically to the slow path across various input types and edge cases.",
+      "suggestedCheck": "Verify that existing tests cover the fast-path case (simple c.json() calls with no status/headers/arg) and that new tests were added if coverage was missing."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.15,
+  "derivedRiskScore": 0.4656,
+  "meta": {
+    "mode": "gate-baseline-s3",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 1665,
+    "outputTokens": 671,
+    "costUsd": 0.00502,
+    "wallMs": 7839,
+    "toolCalls": 0
+  }
+}

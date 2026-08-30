@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3833,
+    "title": "fix(compress): don't compress server-sent events",
+    "baseSha": "2a68c594d24c282d0c9f9c286f114acf5019f383",
+    "headSha": "aee7f69dcfc60f379a7830241aa6e82c9db5718f",
+    "filesChanged": 2,
+    "additions": 14,
+    "deletions": 2
+  },
+  "summary": "This PR excludes `text/event-stream` from compression by adding a negative lookahead to the regex. A test verifies SSE is not compressed. The change is minimal and well-targeted, but the regex modification is complex and lacks inline documentation of the lookahead logic.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/utils/compress.ts",
+      "line": 10,
+      "category": "other",
+      "rationale": "The regex modification introduces a negative lookahead `(?!event-stream(?:[;\\s]|$))` within the `text/` branch. While functionally correct, this is a non-obvious pattern change in a critical content-type matching function. The lookahead is subtle and could be misunderstood or accidentally broken during future maintenance. No comment explains why this specific pattern was chosen or what problem it solves.",
+      "suggestedCheck": "Verify the negative lookahead correctly rejects `text/event-stream` and `text/event-stream;charset=utf-8` while still accepting `text/plain`, `text/html`, etc. Add an inline comment explaining the lookahead's purpose and the SSE use case."
+    },
+    {
+      "severity": "low",
+      "file": "src/middleware/compress/index.test.ts",
+      "line": 165,
+      "category": "test-gap",
+      "rationale": "The test verifies that SSE responses are not compressed by checking the byte length (13000 vs compressed size). However, it does not explicitly verify that the `Content-Encoding` header is absent or that the response body is actually uncompressed. The test relies on an indirect assertion (byte length) rather than directly checking compression headers or content.",
+      "suggestedCheck": "Enhance the test to also assert that `res.headers.get('content-encoding')` is null or undefined, and optionally verify the response is valid SSE format (contains 'data:' lines)."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.12,
+  "derivedRiskScore": 0.2875,
+  "meta": {
+    "mode": "gate-agent-s3",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 9370,
+    "outputTokens": 2371,
+    "costUsd": 0.0261423,
+    "wallMs": 29642,
+    "toolCalls": 8
+  }
+}

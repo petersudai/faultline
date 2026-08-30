@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3171,
+    "title": "fix(helper/adapter): don't check `navigator` is `undefined`",
+    "baseSha": "0535579de5af90319165304be409ea9b7d5d47f3",
+    "headSha": "5c20ec4d764920eab85ae93d8c7113ebc2c6646f",
+    "filesChanged": 1,
+    "additions": 6,
+    "deletions": 2
+  },
+  "summary": "This PR changes the runtime detection logic to avoid checking if `navigator` is undefined, instead using a try-catch to safely access `navigator.userAgent`. The fix addresses an issue in Cloudflare Pages where `navigator` is undefined in production but accessing it doesn't throw an error in some contexts.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/helper/adapter/index.ts",
+      "line": 54,
+      "category": "unhandled-edge-case",
+      "rationale": "The new logic silently catches all exceptions when accessing `navigator.userAgent`, but the original code explicitly checked for `navigator` existence first. If `navigator` exists but `navigator.userAgent` throws for reasons other than being undefined (e.g., a getter that throws), the behavior changes from detecting support to silently treating it as unsupported. This could mask unexpected runtime errors.",
+      "suggestedCheck": "Verify that in all target runtimes (Node.js, Deno, Cloudflare Pages, browsers, etc.), accessing `navigator.userAgent` either succeeds or throws only when the property doesn't exist, not for other reasons. Consider whether swallowing all exceptions here is the intended behavior or if specific error types should be caught."
+    },
+    {
+      "severity": "low",
+      "file": "src/helper/adapter/index.ts",
+      "line": 51,
+      "category": "test-gap",
+      "rationale": "The PR description indicates tests were not added (checkbox unchecked). The change affects runtime detection logic which is critical for adapter selection. Without new tests covering the Cloudflare Pages scenario mentioned in the comment, there's no verification that the fix actually resolves issue #3158.",
+      "suggestedCheck": "Confirm that existing tests still pass and consider whether a test case for Cloudflare Pages production environment (where navigator is undefined) should be added to prevent regression."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.15,
+  "derivedRiskScore": 0.2875,
+  "meta": {
+    "mode": "gate-baseline-s3",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 869,
+    "outputTokens": 480,
+    "costUsd": 0.003269,
+    "wallMs": 6494,
+    "toolCalls": 0
+  }
+}

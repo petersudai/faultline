@@ -1,0 +1,26 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3849,
+    "title": "fix(factory): correct the type of `factory.createMiddleware()`",
+    "baseSha": "3fba7a5e7d92cdb69c817dd15702508812305171",
+    "headSha": "dbfe2477ffdcb2eedf372ed32dd50b204aceb903",
+    "filesChanged": 2,
+    "additions": 43,
+    "deletions": 21
+  },
+  "summary": "This PR fixes the type signature of `Factory.createMiddleware()` and `createFactory()` by changing default type parameters from `any` to more specific types (`Env` and `string`), and adding an explicit return type annotation to the `createMiddleware` method. These are type-level fixes with no runtime behavior changes. The test suite is reorganized and includes a new test case validating the corrected type inference for middleware.",
+  "findings": [],
+  "risk": "Low",
+  "modelRiskScore": 0.05,
+  "derivedRiskScore": 0,
+  "meta": {
+    "mode": "gate-abl4-s3",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 7509,
+    "outputTokens": 1532,
+    "costUsd": 0.0194287,
+    "wallMs": 20718,
+    "toolCalls": 6
+  }
+}

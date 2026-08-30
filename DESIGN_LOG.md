@@ -493,6 +493,11 @@ read_file, get_related_tests; 8-step cap) → verify pass → **adversarial seco
 pass** → deterministic classifier + calibrated score. The loop is kept for the
 localisation and the audit trail; the accuracy comes from the second pass.
 
+> **Superseded by D20.** A pre-registered 3-seed gate on a rebuilt version of
+> the second pass **failed**. Shipped config is now the direct call; `--deep`
+> (investigate → verify → classify) is opt-in for the trajectory; the critic is
+> a removed experiment.
+
 ---
 
 ## D19 — Fresh-clone reproduction check
@@ -532,6 +537,69 @@ recommended). Repo: `github.com/petersudai/faultline` (private until submission)
 
 ---
 
+## D20 — Pre-registered gate on the critic pass: it fails; D17–D18 reversed
+
+D17–D18 credited the "adversarial second pass" with the recall lift and shipped
+it. Two problems: (a) the pass that produced those numbers was the *append-only
+security specialist* of D-R — half its runs parse-failed, and the "wins" were
+appended findings coerced to `other`, not re-rating; (b) the recorded seeds
+couldn't separate an operating-point shift from a real gain.
+
+The pass was **rebuilt** as the critic the docs always described (re-judge each
+finding, break the Medium hedge, rewrite severities + score, replace the draft;
+runs after verify) and put to a **gate fixed before the run** (`scripts/gate.sh`,
+`eval/gate.ts`):
+
+- Haiku, 12 cases, **3 independent seeds** each of: direct call · loop without
+  critic (`abl-4-verify`, also without `find_references` now) · loop + critic.
+- PASS needs all of — **C1** mean recall(critic) ≥ mean recall(no-critic) + 0.10
+  and > direct, no seed below either mean; **C2** mean AUC(model score) up
+  > 0.03 vs both, no seed below either mean; **C3** every critic seed within one
+  clean PR of the no-critic specificity mean **and** ≥ 0.667.
+- Miss any ⇒ removed experiment; shipped `--deep` = investigate → verify →
+  classify. No tuning past that.
+
+**Result — FAIL.** Mean of 3 seeds (range):
+
+| | strict | recall | specificity | AUC(model) | AUC(derived) | RC | $/PR |
+|---|---|---|---|---|---|---|---|
+| direct call | 66.7% | 33% | 100% | 0.63 | 0.76 (±0.02) | 6/6 | $0.007 |
+| loop, no critic | 55.6% (50–67) | 22% (17–33) | 89% (83–100) | 0.55 | 0.57 | 2–3/6 | $0.041 |
+| loop + critic | 66.7% (58–75) | 72% (67–83) | 61% (50–67) | 0.78 (0.61–0.97) | 0.69 (0.61–0.81) | 6/6 | $0.042 |
+
+- **C1 recall — PASS.** +50 pp mean over the loop, worst seed 67%.
+- **C2 AUC — FAIL** on seed-robustness. Mean 0.55 → 0.78, but the critic's worst
+  seed is 0.61, below the direct call's 0.63 (other seeds 0.75, 0.97). The
+  direct call's derived score doesn't move — 0.76 within 0.02 across seeds, a
+  fixed formula over one temperature-0 call. Higher mean, noisier; not a more
+  dependable ranker.
+- **C3 specificity — FAIL**, both floors. Critic seeds 50 / 67 / 67% vs the
+  0.722 relative floor and 0.667 absolute; a clean PR flagged "High" on ~40% of
+  cases.
+
+**Reversal.** "The second pass is the win" (D17–D18) does not survive a
+pre-registered, multi-seed test. Shipped product = the **direct call**. `--deep`
+stays for the worked record — showing a reviewer why a PR was flagged, or
+keeping an audit trail — but in the gate it did not beat the direct call (strict
+56% vs 67%, recall 22% vs 33%, root-cause 2–3/6 vs 6/6) at ~6× cost. The critic
+is a removed experiment, reproduced with `--second-pass`.
+
+**New hot take.** For triage on this data the model was never short on
+information — one call finds every root cause (6/6). Nothing added on top sorted
+PRs more dependably: the direct call's derived risk score is a fixed formula
+over that one call (AUC 0.76, ±0.02 across seeds), and the adversarial critic
+only trades specificity for recall about one for one. When an agent
+under-commits, a louder critic changes *where* you sit on the ROC curve, not
+*which* curve you're on. The honest agentic win here is the trajectory, not the
+verdict.
+
+**Incidental.** `eval/report.ts`'s "invoked directly?" guard compared
+`import.meta.url` to a raw `process.argv[1]` and never matched on Windows, so
+`npm run report` silently did nothing; fixed with `pathToFileURL` while wiring
+the gate.
+
+---
+
 ## Metrics glossary (for the video and methodology guide)
 
 | Metric | Meaning | Why it's the right one |
@@ -542,6 +610,7 @@ recommended). Repo: `github.com/petersudai/faultline` (private until submission)
 | Root-cause hit rate | of risky PRs, how often a finding named the file that actually broke *and* described the real issue | measures usefulness, not just the label |
 | False-alarm rate | mean High-severity findings per clean PR | reviewer-trust proxy |
 | Brier score (model / derived) | mean squared error of the 0–1 risk score vs the 0/1 outcome | lower = better calibrated; compares the model's self-estimate to the mechanical one |
+| AUC (model / derived) | P(a reverted PR's risk score outranks a clean PR's); ties 0.5 | threshold-free: separates "can the score sort PRs" from "is the High/Med/Low cut right" |
 | Cost / time per PR | USD and seconds | the brief's efficiency rows; triage has to be cheap to be worth running |
 
 ## Video beats (accumulating)

@@ -69,9 +69,36 @@ export interface Scorecard {
   /** mean squared error of the 0–1 risk score vs the 0/1 outcome; lower better */
   brierModel: number;
   brierDerived: number;
+  /**
+   * Ranking quality of the 0–1 risk score: P(a random reverted PR scores higher
+   * than a random clean PR), ties counted as 0.5. 0.5 = no better than chance,
+   * 1.0 = every reverted PR ranked above every clean one. Threshold-free, so it
+   * separates "can the score sort the PRs" from "is the High/Med/Low cut right".
+   */
+  aucModel: number;
+  aucDerived: number;
   calibrationModel: CalibrationBin[];
   perCase: Scored[];
   manualReview: string[];
+}
+
+/**
+ * AUROC by the Mann–Whitney definition: over every (risky, clean) pair, the
+ * fraction where the risky PR has the higher score (ties = 0.5). No LLM, no
+ * randomness. Returns 0.5 when either class is empty (undefined → neutral).
+ */
+function rocAuc(rows: { score: number; risky: boolean }[]): number {
+  const pos = rows.filter((r) => r.risky).map((r) => r.score);
+  const neg = rows.filter((r) => !r.risky).map((r) => r.score);
+  if (!pos.length || !neg.length) return 0.5;
+  let acc = 0;
+  for (const p of pos) {
+    for (const n of neg) {
+      if (p > n) acc += 1;
+      else if (p === n) acc += 0.5;
+    }
+  }
+  return acc / (pos.length * neg.length);
 }
 
 function calibrationBins(
@@ -228,6 +255,10 @@ export function scoreAll(pairs: { c: Case; review: Review }[]): Scorecard {
     score: s.modelRiskScore,
     risky: s.label === "risky",
   }));
+  const derivedRows = perCase.map((s) => ({
+    score: s.derivedRiskScore,
+    risky: s.label === "risky",
+  }));
 
   return {
     n,
@@ -251,6 +282,8 @@ export function scoreAll(pairs: { c: Case; review: Review }[]): Scorecard {
     hardTotal: hard.length,
     brierModel: brier((s) => s.modelRiskScore),
     brierDerived: brier((s) => s.derivedRiskScore),
+    aucModel: rocAuc(calRows),
+    aucDerived: rocAuc(derivedRows),
     calibrationModel: calibrationBins(calRows),
     perCase,
     manualReview: perCase

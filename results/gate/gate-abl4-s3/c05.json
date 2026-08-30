@@ -1,0 +1,26 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 1560,
+    "title": "feat(app): `basePath` option for the constructor, deprecate `app.basePath()`",
+    "baseSha": "0e77991429d1eb820db9a95f582bd41e77067691",
+    "headSha": "3767c5374395f1893bf997bb379763fd52f80952",
+    "filesChanged": 9,
+    "additions": 126,
+    "deletions": 85
+  },
+  "summary": "This PR adds a `basePath` constructor option to Hono and deprecates the `app.basePath()` method. The changes refactor the internal `_basePath` field to use private field syntax (`#basePath`) and introduce a new `HonoOptions` type. The implementation appears functionally correct with comprehensive test coverage for the new feature.",
+  "findings": [],
+  "risk": "Low",
+  "modelRiskScore": 0.02,
+  "derivedRiskScore": 0,
+  "meta": {
+    "mode": "gate-abl4-s3",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 2379,
+    "outputTokens": 6031,
+    "costUsd": 0.07110825,
+    "wallMs": 58443,
+    "toolCalls": 8
+  }
+}

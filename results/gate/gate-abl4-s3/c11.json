@@ -1,0 +1,35 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3888,
+    "title": "feat(router): support greedy matches with subsequent static components.",
+    "baseSha": "438983b3bb3d459bf9d9d2e5adf1d21a7e6588d8",
+    "headSha": "5f41ceeb32fe23e34a4a5f3f25e4b4b155bcf457",
+    "filesChanged": 6,
+    "additions": 138,
+    "deletions": 29
+  },
+  "summary": "This PR adds support for greedy route parameters followed by static path components (e.g., `/:dirs{.+}/file.html`). The changes modify pattern matching in three routers to use positive lookahead assertions and introduce a queue-based node processing system in the trie-router. Comprehensive tests are added for the new functionality.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/router/trie-router/node.ts",
+      "line": 203,
+      "category": "other",
+      "rationale": "The curNodesQueue is indexed by componentCount (number of slashes in greedy match) but processed sequentially via shift(). If multiple greedy patterns match different numbers of components in the same iteration, the queue indexing may not align with sequential shifting. For example, if one pattern queues nodes at index 2 and another at index 1 in the same iteration, shift() will retrieve index 0 (undefined), then index 1, skipping the index 2 nodes. The logic assumes nodes are queued in strictly increasing order of componentCount, but this is not enforced.",
+      "suggestedCheck": "Verify with a test case where multiple greedy patterns in the same route tree match different numbers of path segments (e.g., one matches 1 slash, another matches 2 slashes) to ensure all queued nodes are processed in the correct order and none are skipped."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.15,
+  "derivedRiskScore": 0.25,
+  "meta": {
+    "mode": "gate-abl4-s3",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 2302,
+    "outputTokens": 3613,
+    "costUsd": 0.03555945,
+    "wallMs": 42536,
+    "toolCalls": 8
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3888,
+    "title": "feat(router): support greedy matches with subsequent static components.",
+    "baseSha": "438983b3bb3d459bf9d9d2e5adf1d21a7e6588d8",
+    "headSha": "5f41ceeb32fe23e34a4a5f3f25e4b4b155bcf457",
+    "filesChanged": 6,
+    "additions": 138,
+    "deletions": 29
+  },
+  "summary": "This PR adds support for greedy regex patterns followed by static route components (e.g., `/:dirs{.+}/file.html`) by using positive lookahead assertions and a queue-based node deferral system. The implementation is well-tested for simple cases, but there is a critical bug in the trie-router's queue indexing logic that would cause routes to fail when a greedy match consumes multiple path segments.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "src/router/trie-router/node.ts",
+      "line": 206,
+      "category": "unhandled-edge-case",
+      "rationale": "The queue deferral logic uses `curNodesQueue.shift()` unconditionally every iteration, but nodes are stored at index `componentCount` (the number of slashes consumed by the greedy match). When a greedy match consumes N slashes (componentCount=N), the child node is stored at curNodesQueue[N], but shift() removes from index 0. This causes nodes stored at indices > 0 to never be processed. For example, with path `/foo/bar/file.html` matching `/:dirs{.+}/file.html`, the greedy match consumes `foo/bar` (1 slash), storing the node at curNodesQueue[1], but the next iteration shifts from index 0, leaving the node unprocessed. This would break routes with greedy matches consuming multiple segments that have child routes.",
+      "suggestedCheck": "Add a test case with a route like `/:prefix{.+}/middle/suffix/extra` and verify it matches paths like `/a/b/middle/suffix/extra` correctly. The current tests only cover cases where greedy matches consume 0-1 segments or don't have child routes to process."
+    },
+    {
+      "severity": "medium",
+      "file": "src/utils/url.ts",
+      "line": 62,
+      "category": "api-contract",
+      "rationale": "The `getPattern()` function signature changed from `getPattern(label: string)` to `getPattern(label: string, next?: string)`. The cache key now includes the `next` parameter (`${label}#${next}`), which means the same pattern with different next components will be cached separately. This is correct for functionality but changes the cache behavior. Callers must pass the `next` parameter consistently, or patterns may be cached incorrectly. The trie-router correctly passes `nextP`, but any other callers (if they exist) must be updated.",
+      "suggestedCheck": "Search the codebase for all calls to `getPattern()` to ensure they all pass the `next` parameter when appropriate. Verify that the linear-router and any other routers handle the signature change correctly."
+    },
+    {
+      "severity": "medium",
+      "file": "src/router/linear-router/router.ts",
+      "line": 89,
+      "category": "error-handling",
+      "rationale": "The lookahead logic checks `next && next[1] !== ':' && next[1] !== '*'` to determine if a lookahead is needed. However, this assumes `next` is a non-empty string. If `next` is an empty string (which shouldn't happen but could due to edge cases in path parsing), accessing `next[1]` would return `undefined`, and the condition would be false, potentially missing the lookahead. Additionally, the logic doesn't account for optional parameters (`:id?`), which start with `:` but should still trigger lookahead in some cases.",
+      "suggestedCheck": "Verify that `parts[j + 1]` is never an empty string in the linear-router. Add defensive checks or clarify the invariant. Test with optional parameters like `/:prefix{.+}/middle/:id?` to ensure lookahead works correctly."
+    }
+  ],
+  "risk": "High",
+  "modelRiskScore": 0.72,
+  "derivedRiskScore": 0.7469,
+  "meta": {
+    "mode": "gate-abl4-s1",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 2310,
+    "outputTokens": 7341,
+    "costUsd": 0.09718655,
+    "wallMs": 73419,
+    "toolCalls": 9
+  }
+}

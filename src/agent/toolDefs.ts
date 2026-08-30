@@ -15,16 +15,27 @@ export type ToolName =
   | "get_related_tests"
   | "search_repo";
 
-/** Default tool set. `search_repo` is defined but off by default — in practice
- *  the agent burned calls on it for little signal; still available via --tools. */
+/**
+ * Default tool set for the shipped agent. `find_references` and `search_repo`
+ * are defined and still selectable via --tools, but off by default: the
+ * ablation found `find_references` pulled the model off the actual change
+ * (root-cause hit rate 5/6 → 2/6) and `search_repo` burned calls for little
+ * signal. See CHANGELOG "Removed experiments".
+ */
 export const ALL_TOOLS: ToolName[] = [
+  "get_diff",
+  "read_file",
+  "get_related_tests",
+];
+
+/** Every tool the toolkit can build, default or not. */
+export const TOOL_NAMES: ToolName[] = [
   "get_diff",
   "read_file",
   "find_references",
   "get_related_tests",
+  "search_repo",
 ];
-
-export const TOOL_NAMES: ToolName[] = [...ALL_TOOLS, "search_repo"];
 
 export interface ToolDeps {
   repo: RepoContext | null;

@@ -13,61 +13,73 @@ Reproduce with `bash scripts/ablation.sh`; numbers below are from the committed
 - **spec** — of the 6 clean PRs, how many were *not* marked High
 - **RC** — root-cause hit rate on the 6 reverted PRs
 - **Brier** — calibration error of the model's 0–1 risk score (lower better)
+- **AUC** — ranking quality of the 0–1 risk score: P(a reverted PR scores above
+  a clean one); 0.5 = chance, threshold-free
 - **$/PR** — mean cost per PR (Haiku 4.5)
 
 ## Read this first: what n=12 can and cannot tell us
 
-We re-ran the final config unchanged and it moved **8 points** (strict 75.0% →
-66.7%, recall 67% → 50%). On a 12-case set, one case ≈ 8 pp, and Haiku's
-sampling adds ±1 case of noise. So we report **ranges over 2 seeds**, not point
-estimates. Anyone quoting a tight number off 12 cases — us included, first time
-round — is fooling themselves. With more budget the fix is more cases and more
-seeds; the direction below held across both runs, the magnitude did not pin
-down.
+We re-ran the then-final config unchanged and it moved **8 points** (strict
+75.0% → 66.7%, recall 67% → 50%). On a 12-case set, one case ≈ 8 pp, and Haiku's
+sampling adds ±1 case of noise. So we report **ranges over seeds**, not point
+estimates, and settled the deciding comparison with a **pre-registered 3-seed
+gate** (`scripts/gate.sh`). The n=12 caution was warranted: the critic pass's
+apparent recall win did not survive that gate — see *Removed experiments* and
+`DESIGN_LOG.md` D20.
 
 ## The ablation (claude-haiku-4-5)
 
 | # | Stage | Capability added | strict | triage | recall | spec | RC | $/PR |
 |---|-------|------------------|:------:|:------:|:------:|:----:|:--:|:----:|
-| 0 | **baseline** | one call: PR title + body + diff → findings + risk score; deterministic label | 66.7% | 66.7% | 33% | 100% | 6/6 | $0.007 |
+| 0 | **baseline — the shipped product** | one call: PR title + body + diff → findings + risk score; deterministic label | 66.7% | 66.7% | 33% | 100% | 6/6 | $0.007 |
 | 1 | baseline-plus | + full text of the changed files (still one call) | 66.7% | 58.3% | 33% | 100% | 6/6 | $0.021 |
 | 2 | abl-1-read † | agent loop; tools: get_diff, read_file; no verify | 50.0% | 50.0% | 17% | 83% | 5/6 | $0.051 |
 | 3 | abl-2-callers † | + find_references | 58.3% | 41.7% | 17% | 100% | 2/6 | $0.041 |
 | 4 | abl-3-tests † | + get_related_tests | 50.0% | 50.0% | 0% | 100% | 4/6 | $0.036 |
-| 5 | abl-4-verify | + separate verify pass, then the classifier | 66.7% | 58.3% | 33% | 100% | 3/6 | $0.046 |
-| 6 | **agent (final)** — seed A / seed B | + **adversarial second pass** | 66.7% / 75.0% | 66.7% / 75.0% | **50% / 67%** | 83% / 83% | 4/6 / 5/6 | $0.04–0.06 |
+| 5 | **abl-4-verify — shipped `--deep`** | + separate verify pass, then the classifier | 55.6% | 50.0% | 22% | 89% | 2–3/6 | $0.041 |
+| R | critic — **removed experiment** | + adversarial critic pass over the verified draft | 66.7% | 50.0% | 72% | 61% | 6/6 | $0.042 |
 
-† rows 2–4 predate the `submit_review` reliability fix and each had 0–2
-JSON-parse failures (scored Low). Directional only; rows 0, 1, 5, 6 are clean.
+Rows **0, 5, R** are the pre-registered 3-seed gate (`scripts/gate.sh`, mean of
+3 seeds, pooled into `results/`). Row 1 is a single `baseline-plus` run.
+† rows 2–4 predate the `submit_review` reliability fix, had 0–2 JSON-parse
+failures each (scored Low), and are directional only.
 
-**What survives across both seeds of the final config:**
-- recall on reverted PRs **50–67%**, always above baseline's 33% and above
-  abl-4's 33% (verify without the adversarial pass) — the second pass is the
-  only step that lifts recall, in every run;
-- specificity drops 100% → 83% (one clean PR flagged High) in every run;
-- cost ~5–8× the baseline.
+The shipped pipeline is **row 0** (the direct call); **row 5** is available as
+`--deep` for the trajectory trace. **Row R** — the adversarial critic — failed
+the gate: recall passed (+50 pp over row 5), but specificity fell 89% → 61% and
+the model-score AUC (0.78 mean) swung 0.61–0.97 across the 3 seeds, one below
+the direct call's 0.63. Details under *Removed experiments*; the reversal of the
+earlier "second pass is the win" claim in `DESIGN_LOG.md` D20.
 
 ## What each capability bought
 
 - **Full files (row 1):** nothing on strict accuracy — the diff alone is enough
   once the prompt is good. Dropped from the design.
 - **The investigation loop (rows 2–5):** no strict-accuracy gain over the
-  baseline (66.7% → 66.7%), 5–7× the cost, and it *hurt* root-cause localisation
-  (6/6 → 3/6) — the model spent attention on tool output instead of the change.
-  `find_references` was the worst offender (RC 5/6 → 2/6) and is off by default.
-- **The adversarial second pass (row 6):** the only step that lifts recall on
-  reverted PRs — 33% → 50–67% across two seeds — and the only step where the
-  model's calibration improved on its best run (Brier 0.33 → 0.23; ~0.31 on the
-  other seed). Cost: one clean PR flagged High (spec 100 → 83%), every run.
-- **Investigation + critic is interactive, not additive.** A run with the critic
-  but *no* investigation loop (`--tools get_diff --second-pass`) scored 50% /
-  RC 2/6; the loop without the critic scored 66.7% / recall 33%. Each piece is
-  inert alone.
+  baseline — worse, on the 3-seed gate (55.6% vs 66.7%) — at 5–7× the cost, and
+  it *hurt* root-cause localisation (6/6 → 2–3/6) as the model spent attention
+  on tool output instead of the change. `find_references` was the worst
+  offender (RC 5/6 → 2/6) and is out of the default tool set.
+- **The adversarial critic pass (row R):** raises recall on reverts (22% → 72%
+  vs row 5) but raises clean-PR false alarms in step (specificity 89% → 61%),
+  and its model-score AUC — 0.78 mean — swings 0.61–0.97 across the 3 gate
+  seeds, one below the direct call's 0.63. Failed the pre-registered gate; not
+  shipped.
+- **critic-only** (adversarial pass with no investigation loop) scored 50% /
+  RC 2/6 — see *Removed experiments* #3.
 
-## Biggest single contributor
+## What the ablation showed
 
-The adversarial second pass (row 5 → 6): the only capability that raised recall
-on reverted PRs in every run (+17–34 pp), at a fixed cost of one false alarm.
+No single capability is a clean win.
+- **The direct call (row 0) is strong** — 66.7% strict, 6/6 root-cause, AUC 0.76
+  on the derived risk score, $0.007/PR. The model finds the problems; it just
+  needs the prompt to make it commit.
+- **The investigation loop (rows 2–5) degrades it** — flat-to-worse on strict
+  accuracy, ~6× the cost, and root-cause localisation drops (6/6 → 2–3/6) as
+  attention shifts to tool output. Kept as `--deep` for the trajectory only.
+- **The critic (row R) shifts the operating point, it doesn't lift the curve** —
+  +39 pp recall / −39 pp specificity vs the direct call, roughly one for one,
+  with no gain in how dependably the risk score ranks PRs. Removed.
 
 ## Removed experiments
 
@@ -78,6 +90,40 @@ on reverted PRs in every run (+17–34 pp), at a fixed cost of one false alarm.
    tool set (still available via `--tools`).
 3. **critic-only** (adversarial pass with no investigation) — 50% / RC 2/6;
    confirmed the two parts are only useful together.
+4. **adversarial critic pass** — a second reviewer that re-judges the verified
+   draft finding by finding, biased against hedging to "Medium", and rewrites
+   the severities and the risk score (replaces the draft, not a merge; runs
+   after verify). Built as the step D17–D18 credited with the recall lift, then
+   held to a **pre-registered gate** (`scripts/gate.sh`, `eval/gate.ts`): Haiku,
+   12 cases, 3 seeds; pass only if the full pipeline beats *both* the direct
+   call and the loop-without-critic on recall **and** ranking AUC, every seed,
+   without losing more than one clean PR of specificity.
+
+   **Result — FAIL (2 of 3).** Mean of 3 seeds (range in parens):
+
+   | | strict acc | recall (revert→High) | specificity | AUC model | AUC derived | $/PR |
+   |---|---|---|---|---|---|---|
+   | direct call | 66.7% | 33% | 100% | 0.63 | 0.76 | $0.007 |
+   | loop, no critic (shipped `--deep`) | 55.6% | 22% | 89% | 0.55 | 0.57 | $0.041 |
+   | loop + critic | 66.7% (58–75) | **72%** (67–83) | 61% (50–67) | 0.78 (0.61–0.97) | 0.69 (0.61–0.81) | $0.042 |
+
+   - **C1 recall — pass.** +50 pp over the loop, worst seed 67%.
+   - **C2 ranking — fail.** The critic's model-score AUC averages higher (0.78)
+     but swings 0.61–0.97 across seeds, and its worst seed (0.61) falls below
+     the direct call's 0.63. The direct call's *derived* score is a fixed
+     formula over one temperature-0 call — 0.76, within 0.02 across seeds. Not a
+     more dependable ranker, just a noisier high.
+   - **C3 specificity — fail**, both floors: 61% mean, a clean PR flagged "High"
+     on ~40% of cases.
+
+   Measured against the shipped direct call the critic trades one for one:
+   +39 pp recall, −39 pp specificity. It moves the operating point, it does not
+   add discrimination. Kept in the tree, off by default; `--second-pass` (or
+   `scripts/ablation.sh` row R) reproduces it.
+
+   _Numbers are the mean of the 3 per-seed scorecards (what `scripts/gate.sh`
+   prints); `results/summary.md` pools all 36 observations and lands within
+   0.01._
 
 ## Cross-model check — not completed
 
@@ -99,8 +145,10 @@ running the code in that environment.
 
 ## Hot take
 
-For pre-merge triage the model was never short on **information** — the plain
-baseline already finds every root cause (6/6). It is short on **conviction**:
-left alone it hedges every risky PR to "Medium". More tools made this *worse*.
-The fix that worked was a second pass that argues with the first. **When an
-agent is under-committing, add a critic, not a crawler.**
+For triage on this data the model was never short on information — one call
+finds every root cause (6/6). Nothing added on top sorted PRs more dependably:
+the direct call's derived risk score is a fixed formula over that one call
+(AUC 0.76, ±0.02 across seeds), and the adversarial critic only trades
+specificity for recall about one for one. When an agent under-commits, a louder
+critic changes *where* you sit on the ROC curve, not *which* curve you're on.
+The honest agentic win here is the trajectory, not the verdict.

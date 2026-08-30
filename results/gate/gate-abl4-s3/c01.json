@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 4707,
+    "title": "perf(context): add fast path to c.json() matching c.text() optimization",
+    "baseSha": "69f303e0c3a45c09e7ec56611973751208737857",
+    "headSha": "a32bdde71473f1534789d0b11ea0eae710e611f7",
+    "filesChanged": 1,
+    "additions": 14,
+    "deletions": 6
+  },
+  "summary": "This PR adds a fast path to c.json() using Response.json(), which automatically sets Content-Type with charset=UTF-8. The old slow path via setDefaultContentType() sets it without charset. This creates an observable API difference in response headers depending on which path executes. The fast path lacks test coverage.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "src/context.ts",
+      "line": 712,
+      "category": "api-contract",
+      "rationale": "Response.json(object) automatically sets Content-Type: application/json; charset=UTF-8, while the old code path via setDefaultContentType('application/json', headers) sets Content-Type: application/json without charset. This is an observable difference in the HTTP response headers that changes the public API contract. Clients or tests that validate the exact Content-Type value will see different behavior depending on whether the fast path or slow path is taken.",
+      "suggestedCheck": "Verify that Response.json() produces the same Content-Type header as the old path. If charset=UTF-8 is intentional, update the old path to match. If not, use a plain Response constructor with inline headers in the fast path instead of Response.json()."
+    },
+    {
+      "severity": "medium",
+      "file": "src/context.test.ts",
+      "line": null,
+      "category": "test-gap",
+      "rationale": "The new fast path in c.json() (triggered when no arg and no headers are provided) is not covered by existing tests. The existing c.json() test exercises the slow path by passing status/headers arguments. Without a test for the simple c.json({ ... }) case, the fast path behavior—including the Content-Type header difference from Response.json()—remains unverified.",
+      "suggestedCheck": "Add a test case for c.json({ message: 'Hello' }) with no status or headers arguments, and verify the Content-Type header matches expectations and is consistent with the slow path behavior."
+    }
+  ],
+  "risk": "High",
+  "modelRiskScore": 0.65,
+  "derivedRiskScore": 0.6625,
+  "meta": {
+    "mode": "gate-abl4-s3",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 7284,
+    "outputTokens": 2824,
+    "costUsd": 0.06094395,
+    "wallMs": 36369,
+    "toolCalls": 10
+  }
+}

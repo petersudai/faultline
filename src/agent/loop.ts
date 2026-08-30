@@ -11,14 +11,12 @@ import type { RepoContext } from "../repo/tools.js";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { buildToolkit, ALL_TOOLS, SUBMIT_TOOL, type ToolName } from "./toolDefs.js";
-import { z } from "zod";
 import {
   INVESTIGATOR_SYSTEM,
   VERIFIER_SYSTEM,
   SECOND_PASS_SYSTEM,
   investigatorOpening,
 } from "./prompts.js";
-import { Finding as FindingSchema } from "../review/schema.js";
 
 export interface AgentDeps {
   llm: LlmLike;
@@ -35,14 +33,9 @@ export interface AgentDeps {
   tools?: ToolName[];
   maxSteps?: number;
   verify?: boolean;
-  /** experiment R: bolt on a security-specialist second pass (expected: removed) */
+  /** removed experiment: adversarial critic pass after verify — failed the
+   *  pre-registered gate (see SECOND_PASS_SYSTEM); off by default, opt-in for repro */
   secondPass?: boolean;
-}
-
-const SecondPassOut = z.object({ findings: z.array(FindingSchema) });
-
-function findingKey(f: Finding): string {
-  return `${f.file}:${f.line ?? "-"}:${f.category}`;
 }
 
 function assistantContent(text: string, toolUses: { id: string; name: string; input: unknown }[]): Anthropic.ContentBlockParam[] {
@@ -226,39 +219,6 @@ export async function runAgent(
 
   if (!draft) throw new Error("agent never submitted a review");
 
-  // ---- experiment R: security-specialist second pass ------------------------
-  if (deps.secondPass) {
-    const wholeDiff = await deps.getDiff();
-    const sres = await deps.llm.call({
-      system: SECOND_PASS_SYSTEM,
-      messages: [
-        {
-          role: "user",
-          content: [
-            "PR diff:",
-            "```diff",
-            wholeDiff.slice(0, LIMITS.maxInlineDiffLines * 220),
-            "```",
-            "",
-            "Generalist findings:",
-            JSON.stringify(draft.findings, null, 2),
-          ].join("\n"),
-        },
-      ],
-      maxTokens: 2000,
-    });
-    log.step({ kind: "phase", label: "second-pass", output: { text: sres.text } });
-    try {
-      const extra = parseWith(SecondPassOut, sres.text).findings;
-      const seen = new Set(draft.findings.map(findingKey));
-      const merged = [...draft.findings];
-      for (const f of extra) if (!seen.has(findingKey(f))) merged.push(f);
-      draft = { ...draft, findings: merged };
-    } catch {
-      log.step({ kind: "error", label: "second-pass-parse-failed" });
-    }
-  }
-
   // ---- verify pass -----------------------------------------------------------
   let verified = draft;
   if (deps.verify) {
@@ -289,6 +249,45 @@ export async function runAgent(
       // if the verifier botches the format, keep the draft rather than fail
       verified = draft;
       log.step({ kind: "error", label: "verify-parse-failed", output: { text: vres.text } });
+    }
+  }
+
+  // ---- adversarial critic pass (REMOVED EXPERIMENT) ----------------------
+  // Re-judge the verified draft finding by finding, biased against hedging a
+  // real risk to "Medium", and rewrite summary + riskScore. Replaces the review
+  // outright — not a merge. Failed the pre-registered gate (recall up, but
+  // specificity 89% -> 61% and AUC not seed-robust; see SECOND_PASS_SYSTEM).
+  // OFF by default — `deps.secondPass` / CLI `--second-pass` opts in for repro.
+  if (deps.secondPass) {
+    const wholeDiff = await deps.getDiff();
+    const cres = await deps.llm.call({
+      system: SECOND_PASS_SYSTEM,
+      messages: [
+        {
+          role: "user",
+          content: [
+            "PR diff:",
+            "```diff",
+            wholeDiff.slice(0, LIMITS.maxInlineDiffLines * 220),
+            "```",
+            "",
+            "Draft review to challenge:",
+            JSON.stringify(verified, null, 2),
+          ].join("\n"),
+        },
+      ],
+      maxTokens: 3000,
+    });
+    log.step({ kind: "phase", label: "second-pass", output: { text: cres.text } });
+    try {
+      verified = parseWith(ModelReview, cres.text);
+    } catch {
+      // keep the verified draft if the critic botches the format
+      log.step({
+        kind: "error",
+        label: "second-pass-parse-failed",
+        output: { text: cres.text },
+      });
     }
   }
 

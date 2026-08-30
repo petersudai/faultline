@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3171,
+    "title": "fix(helper/adapter): don't check `navigator` is `undefined`",
+    "baseSha": "0535579de5af90319165304be409ea9b7d5d47f3",
+    "headSha": "5c20ec4d764920eab85ae93d8c7113ebc2c6646f",
+    "filesChanged": 1,
+    "additions": 6,
+    "deletions": 2
+  },
+  "summary": "This PR changes runtime detection to use try-catch instead of explicit navigator checks, aiming to handle Cloudflare Pages where navigator is undefined. However, the new logic is functionally different: it removes the guard that prevents accessing an undefined navigator, creating a potential ReferenceError in environments where navigator doesn't exist.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "src/helper/adapter/index.ts",
+      "line": 54,
+      "category": "breaking-change",
+      "rationale": "The original code checked `typeof navigator !== 'undefined'` before accessing `navigator.userAgent`, which safely handles environments where navigator is not defined. The new code removes this guard and directly accesses `navigator.userAgent` inside a try-catch. In strict mode or certain JavaScript environments, accessing an undefined variable throws a ReferenceError before the catch block can intercept it. The comment claims this 'only checks navigator.userAgent' but the logic change is material: the old code would return false if navigator was undefined; the new code attempts to access it and relies on exception handling.",
+      "suggestedCheck": "Verify that in Cloudflare Pages production environment, `navigator` is truly undefined (not just navigator.userAgent). Test the new code path in strict mode and confirm that accessing undefined navigator does not throw an uncaught ReferenceError. If navigator is undefined, `typeof navigator.userAgent` will throw before the catch block runs."
+    },
+    {
+      "severity": "medium",
+      "file": "src/helper/adapter/index.ts",
+      "line": 50,
+      "category": "test-gap",
+      "rationale": "The change alters the control flow and error-handling strategy for a runtime detection function that is likely called early in application initialization. No test additions are visible in the diff to verify the new try-catch path works correctly in Cloudflare Pages or other environments where navigator is undefined.",
+      "suggestedCheck": "Add a test case that simulates an environment where navigator is undefined and confirm userAgentSupported is set to false without throwing."
+    }
+  ],
+  "risk": "High",
+  "modelRiskScore": 0.72,
+  "derivedRiskScore": 0.6625,
+  "meta": {
+    "mode": "gate-agent-s1",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 6374,
+    "outputTokens": 2290,
+    "costUsd": 0.0193572,
+    "wallMs": 28734,
+    "toolCalls": 5
+  }
+}

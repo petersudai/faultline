@@ -1,0 +1,67 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 4198,
+    "title": "fix(etag): fallback if `res.clone()` is not supported",
+    "baseSha": "53656e126df4855969afa55603cd063343d65552",
+    "headSha": "6f22acef362356c58ce071eaae9decea6ac1d6a4",
+    "filesChanged": 3,
+    "additions": 44,
+    "deletions": 11
+  },
+  "summary": "This PR adds a fallback mechanism for environments where `Response.clone()` is not supported (e.g., AWS Lambda). When cloning fails, it reads the response body into an ArrayBuffer and regenerates the ETag. The `generateDigest` function is refactored to accept either a ReadableStream or ArrayBuffer.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "src/middleware/etag/index.ts",
+      "line": 102,
+      "category": "data-loss",
+      "rationale": "After calling `res.arrayBuffer()`, the response body stream is consumed and cannot be read again. The fallback creates a new Response with the buffer, but the original response body is already exhausted. If the middleware is used in a chain where downstream handlers expect to read the body, they will get an empty stream.",
+      "suggestedCheck": "Verify that after the fallback path executes, the response body is still readable by downstream middleware and the final consumer. Test with a middleware chain that reads the body multiple times."
+    },
+    {
+      "severity": "medium",
+      "file": "src/middleware/etag/index.ts",
+      "line": 101,
+      "category": "error-handling",
+      "rationale": "The catch block catches all errors from `res.clone()`, but `res.clone().body` could also throw if the response object is malformed. The fallback assumes `res.arrayBuffer()` will succeed, but it could also fail. If `res.arrayBuffer()` throws, the error is unhandled and will propagate.",
+      "suggestedCheck": "Add error handling around the `res.arrayBuffer()` call in the fallback path, or document what errors are expected and how they should be handled."
+    },
+    {
+      "severity": "medium",
+      "file": "src/middleware/etag/index.ts",
+      "line": 110,
+      "category": "api-contract",
+      "rationale": "The fallback reassigns `c.res` to a new Response object. This could break downstream middleware or handlers that hold references to the original response object or expect specific properties/methods on it. The new Response may not preserve all properties of the original.",
+      "suggestedCheck": "Verify that reassigning `c.res` does not break the response pipeline. Check if any middleware after etag() depends on the original response object's identity or properties."
+    },
+    {
+      "severity": "low",
+      "file": "src/middleware/etag/digest.ts",
+      "line": 12,
+      "category": "test-gap",
+      "rationale": "The new ArrayBuffer path in `generateDigest` is tested indirectly through the integration test, but there is no direct unit test for the `generateDigest` function with an ArrayBuffer input. The function signature changed to accept a union type, but test coverage for both paths is not explicit.",
+      "suggestedCheck": "Consider adding a direct unit test for `generateDigest` with an ArrayBuffer input to ensure the logic is correct independent of the middleware integration."
+    },
+    {
+      "severity": "low",
+      "file": "src/middleware/etag/index.test.ts",
+      "line": 159,
+      "category": "test-gap",
+      "rationale": "The test mocks `clone()` to throw an error, but it doesn't verify that the fallback path actually executes or that the response body is still readable after the middleware processes it. The test only checks that status, ETag, and text are correct, but doesn't verify the body wasn't consumed twice.",
+      "suggestedCheck": "Enhance the test to verify that the response body can be read multiple times if needed, or document the limitation that the body is consumed during ETag generation."
+    }
+  ],
+  "risk": "High",
+  "modelRiskScore": 0.25,
+  "derivedRiskScore": 0.7716,
+  "meta": {
+    "mode": "gate-baseline-s3",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 1757,
+    "outputTokens": 920,
+    "costUsd": 0.006357,
+    "wallMs": 8946,
+    "toolCalls": 0
+  }
+}

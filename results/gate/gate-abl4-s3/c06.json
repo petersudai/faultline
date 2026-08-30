@@ -1,0 +1,26 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 871,
+    "title": "feat: use added app's errorHandler",
+    "baseSha": "c335a9272b6fabab5bb4407f1d1a0ae42a0ff5b5",
+    "headSha": "141cb9d18864912b2fffbfd2f278a1d24b6a4c7d",
+    "filesChanged": 6,
+    "additions": 141,
+    "deletions": 30
+  },
+  "summary": "This PR reorders parameters in the `compose` function (swapping `onNotFound` and `onError`), extracts default handlers as module-level constants, and implements a feature to use a sub-app's custom errorHandler when composing routes. The changes are consistent across all call sites, tests are updated accordingly, and new tests verify the errorHandler and notFound behavior with nested apps.",
+  "findings": [],
+  "risk": "Low",
+  "modelRiskScore": 0.05,
+  "derivedRiskScore": 0,
+  "meta": {
+    "mode": "gate-abl4-s3",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 6087,
+    "outputTokens": 2391,
+    "costUsd": 0.024172,
+    "wallMs": 32545,
+    "toolCalls": 8
+  }
+}

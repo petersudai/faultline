@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3800,
+    "title": "fix(context): single body overrides other returns",
+    "baseSha": "fa6f51bb1b110cddc7dc41cb7e531fab27fe871f",
+    "headSha": "92a1a129e6e9f430f93e35d217a7bd2a324c85cb",
+    "filesChanged": 3,
+    "additions": 36,
+    "deletions": 11
+  },
+  "summary": "This PR adds generic type parameters to the `body()` method's overloads to track status codes in union types, enabling proper type inference across conditional branches. The implementation uses a cast to `ReturnType<BodyRespond>` to satisfy the type system, which masks potential runtime mismatches between declared and actual return types.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/context.ts",
+      "line": 735,
+      "category": "other",
+      "rationale": "The `body()` method implementation casts its return value to `ReturnType<BodyRespond>` without runtime validation. The overloads now declare that calling `body(data, status)` returns `Response & TypedResponse<unknown, U, 'body'>`, but the actual implementation returns only what `#newResponse()` produces. If `#newResponse()` does not attach the `TypedResponse` type information at runtime, callers relying on type-level guarantees may have a false sense of type safety. The cast bypasses TypeScript's structural checking.",
+      "suggestedCheck": "Verify that `#newResponse()` actually produces objects compatible with the `TypedResponse` intersection type, or confirm that `TypedResponse` is a pure type-level marker with no runtime implications. Check whether any code downstream relies on runtime properties of the `TypedResponse` type."
+    },
+    {
+      "severity": "low",
+      "file": "src/context.test.ts",
+      "line": 154,
+      "category": "test-gap",
+      "rationale": "The test change replaces `res = c.res` (which retrieves the response object directly) with `const res2 = c.body('Hi')` (which calls body again). While the new test still validates header clearing, it no longer exercises the `c.res` property access pattern that was in the original test. This removes coverage of a different code path.",
+      "suggestedCheck": "Confirm whether the original `c.res` access was intentional and should be preserved in a separate assertion, or whether the new pattern is sufficient for the test's purpose."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.15,
+  "derivedRiskScore": 0.2875,
+  "meta": {
+    "mode": "gate-agent-s2",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 9240,
+    "outputTokens": 3010,
+    "costUsd": 0.0591709,
+    "wallMs": 38966,
+    "toolCalls": 12
+  }
+}

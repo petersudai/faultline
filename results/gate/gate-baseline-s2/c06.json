@@ -1,0 +1,67 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 871,
+    "title": "feat: use added app's errorHandler",
+    "baseSha": "c335a9272b6fabab5bb4407f1d1a0ae42a0ff5b5",
+    "headSha": "141cb9d18864912b2fffbfd2f278a1d24b6a4c7d",
+    "filesChanged": 6,
+    "additions": 141,
+    "deletions": 30
+  },
+  "summary": "This PR reorders parameters in the `compose` function (swapping `onError` and `onNotFound` positions) and implements error handler propagation when sub-apps are mounted via `app.route()`. The main risk is that the parameter reordering is a breaking change to the `compose` API that could silently break callers passing positional arguments.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "src/compose.ts",
+      "line": 12,
+      "category": "breaking-change",
+      "rationale": "The `compose` function signature changed from `(middleware, onNotFound?, onError?)` to `(middleware, onError?, onNotFound?)`. This is a breaking change for any external callers using positional arguments. While the PR updates internal call sites and tests, external consumers of this exported function will silently pass the wrong handler to the wrong parameter.",
+      "suggestedCheck": "Verify whether `compose` is part of the public API or only internal. If public, this requires a major version bump and migration guide. Check if there are any external packages or examples that call `compose` directly."
+    },
+    {
+      "severity": "medium",
+      "file": "src/hono.ts",
+      "line": 124,
+      "category": "api-contract",
+      "rationale": "The logic `app.errorHandler === errorHandler` uses reference equality to detect whether a sub-app has a custom error handler. This is fragile: if a sub-app's errorHandler is reassigned or if the default `errorHandler` function reference changes (e.g., due to module reloading or bundling), the comparison will fail and the custom handler won't be wrapped. The test at line 960 shows the expected behavior, but the implementation is brittle.",
+      "suggestedCheck": "Consider adding a flag (e.g., `_hasCustomErrorHandler`) to track whether a custom error handler was set, rather than relying on reference equality. Verify this works correctly across different bundling/module scenarios."
+    },
+    {
+      "severity": "medium",
+      "file": "src/hono.ts",
+      "line": 124,
+      "category": "unhandled-edge-case",
+      "rationale": "When wrapping a route handler with `compose([r.handler], app.errorHandler)`, the composed function is expected to catch errors from `r.handler` and pass them to `app.errorHandler`. However, if `r.handler` is async and rejects, the error handling depends on the `compose` implementation correctly catching and forwarding the error. The test at line 960 covers this, but there's no explicit verification that async errors in sub-app handlers are caught and routed to the sub-app's error handler.",
+      "suggestedCheck": "Manually trace through the `compose` function to confirm it properly catches errors from async middleware and invokes the error handler. Verify the test at line 960 (`sub.get('/error')`) actually exercises the error path."
+    },
+    {
+      "severity": "medium",
+      "file": "src/hono.ts",
+      "line": 113,
+      "category": "test-gap",
+      "rationale": "The new test for `notFound` at line 980 expects `/sub/implicit-404` to be handled by the app's notFound handler, not the sub-app's. However, the PR only implements error handler propagation, not notFound handler propagation. The test may pass for the wrong reason (default behavior), but the comment suggests an expectation that isn't explicitly implemented.",
+      "suggestedCheck": "Verify that the notFound test expectations are correct. If sub-app notFound handlers should also be propagated (like errorHandlers), implement that logic. If not, clarify why errorHandler and notFound are treated differently."
+    },
+    {
+      "severity": "low",
+      "file": "src/compose.test.ts",
+      "line": 158,
+      "category": "test-gap",
+      "rationale": "Test updates pass `undefined` as the second parameter (onError) when only onNotFound is needed. While this works, it's not explicit about the parameter order change. A comment explaining the parameter reordering would help reviewers and future maintainers.",
+      "suggestedCheck": "Consider adding a comment in the test file or compose.ts documenting why the parameter order was changed and the migration path for callers."
+    }
+  ],
+  "risk": "High",
+  "modelRiskScore": 0.62,
+  "derivedRiskScore": 0.8196,
+  "meta": {
+    "mode": "gate-baseline-s2",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 4053,
+    "outputTokens": 1067,
+    "costUsd": 0.009388,
+    "wallMs": 13027,
+    "toolCalls": 0
+  }
+}

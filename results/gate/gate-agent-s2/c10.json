@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3832,
+    "title": "feat(etag): allow for custom hashing methods to be used to etag",
+    "baseSha": "6837649cd104b1886e6cb6653bf26d0700c4c3e6",
+    "headSha": "8fc6cfd20d261e44cb2adacfb0d2d9664f6c80b0",
+    "filesChanged": 3,
+    "additions": 50,
+    "deletions": 9
+  },
+  "summary": "This PR adds support for custom hashing methods in the ETag middleware by introducing an optional `generateDigest` parameter, preserving backward compatibility with SHA-1 as default. A subtle but real behavioral change was introduced: the line `await c.res.blob()` was removed from the 304 response path, which may affect response body handling in edge cases.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "src/middleware/etag/index.ts",
+      "line": 86,
+      "category": "breaking-change",
+      "rationale": "The diff removes `await c.res.blob()` from the 304 Not Modified response path (line 86 in the original, now deleted). This line was forcing the response body to be consumed. Removing it changes the observable behavior: the response body is no longer explicitly drained before returning a 304. This could affect downstream middleware or callers that depend on the body being consumed, or it could cause resource leaks if the body stream is not properly handled by the framework. The removal appears unrelated to the custom generator feature and lacks justification.",
+      "suggestedCheck": "Verify why `await c.res.blob()` was removed. If it was intentional optimization, confirm that Hono's Response handling automatically drains the body for 304 responses and that no existing tests or real-world usage depends on this explicit consumption. If it was accidental, restore it."
+    },
+    {
+      "severity": "medium",
+      "file": "src/middleware/etag/index.test.ts",
+      "line": 23,
+      "category": "test-gap",
+      "rationale": "The new test for custom digest generation (SHA-256) only verifies the 200 response case. It does not test the 304 conditional GET scenario where the custom generator is used with If-None-Match headers. The existing 'Should handle conditional GETs' test covers 304 responses but only with the default SHA-1 algorithm. This leaves the custom generator path in the 304 response scenario untested.",
+      "suggestedCheck": "Add a test case that uses the custom generateDigest option with If-None-Match headers to verify the 304 Not Modified response is correctly generated and the custom hash algorithm is applied consistently."
+    }
+  ],
+  "risk": "High",
+  "modelRiskScore": 0.35,
+  "derivedRiskScore": 0.6625,
+  "meta": {
+    "mode": "gate-agent-s2",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 7570,
+    "outputTokens": 4473,
+    "costUsd": 0.033190300000000006,
+    "wallMs": 54274,
+    "toolCalls": 6
+  }
+}

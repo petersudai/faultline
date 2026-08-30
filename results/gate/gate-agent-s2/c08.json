@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3849,
+    "title": "fix(factory): correct the type of `factory.createMiddleware()`",
+    "baseSha": "3fba7a5e7d92cdb69c817dd15702508812305171",
+    "headSha": "dbfe2477ffdcb2eedf372ed32dd50b204aceb903",
+    "filesChanged": 2,
+    "additions": 43,
+    "deletions": 21
+  },
+  "summary": "This PR tightens type defaults in the Factory class and createFactory function from `any` to `Env`/`string`, adds explicit return type to createMiddleware, and reorganizes tests. The main risk is that stricter type defaults may break existing code that relied on `any`'s permissiveness, though this is unlikely given the narrow scope.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/helper/factory/index.ts",
+      "line": 286,
+      "category": "breaking-change",
+      "rationale": "Changing default type parameters from `any` to `Env` and `string` is a breaking change for callers who instantiate `Factory` or call `createFactory` without explicit type arguments and rely on the permissiveness of `any`. While `Env` is a reasonable default, code that previously passed non-Env types implicitly will now fail type-checking. The diff shows no migration path or deprecation.",
+      "suggestedCheck": "Search the codebase and any known consumers for bare `createFactory()` or `new Factory()` calls without type arguments. Verify they all satisfy `Env` and `string` constraints, or confirm this is an internal-only API where breaking changes are acceptable."
+    },
+    {
+      "severity": "low",
+      "file": "src/helper/factory/index.test.ts",
+      "line": 331,
+      "category": "test-gap",
+      "rationale": "The new `createMiddleware` type-checking test (lines 354–365) uses `Expect<Equal<...>>` to verify schema extraction but does not assert the middleware actually works at runtime. The test only checks types; if the middleware's runtime behavior regressed, this test would not catch it.",
+      "suggestedCheck": "Confirm that the `createMiddleware` type test is intended to be type-only and that runtime behavior is covered elsewhere, or add a basic runtime assertion (e.g., call the middleware and verify it invokes `next()`)."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.15,
+  "derivedRiskScore": 0.2875,
+  "meta": {
+    "mode": "gate-agent-s2",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 9683,
+    "outputTokens": 2303,
+    "costUsd": 0.0293006,
+    "wallMs": 31230,
+    "toolCalls": 7
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 4198,
+    "title": "fix(etag): fallback if `res.clone()` is not supported",
+    "baseSha": "53656e126df4855969afa55603cd063343d65552",
+    "headSha": "6f22acef362356c58ce071eaae9decea6ac1d6a4",
+    "filesChanged": 3,
+    "additions": 44,
+    "deletions": 11
+  },
+  "summary": "This PR adds fallback handling for environments where `res.clone()` fails (e.g., AWS Lambda), but the fallback path processes the response body differently than the normal path. The fallback converts the entire body to an ArrayBuffer and passes it to the generator once, while the normal path streams chunks and accumulates hashes. This architectural difference will produce different ETag values for identical content, breaking cache validation.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "src/middleware/etag/digest.ts",
+      "line": 20,
+      "category": "api-contract",
+      "rationale": "The new ArrayBuffer branch (lines 20-21) calls `generator(new Uint8Array(input))` once with the full buffer. The streaming branch (lines 23-30) calls the generator multiple times, passing accumulated results via `mergeBuffers()`. For hash generators that expect incremental input (the typical pattern for streaming), these produce different outputs. The generator contract is violated by the single-call path.",
+      "suggestedCheck": "Trace through the default SHA-1 generator (or any custom generator used in tests) with identical input data via both paths. Confirm they produce identical hash outputs. If not, the ArrayBuffer path must accumulate chunks identically to the streaming path."
+    },
+    {
+      "severity": "high",
+      "file": "src/middleware/etag/index.ts",
+      "line": 101,
+      "category": "breaking-change",
+      "rationale": "When `res.clone()` fails, the fallback calls `generateDigest(buffer, generator)` where `buffer` is an ArrayBuffer. This triggers the new single-call path in digest.ts. For the same response body, the normal path (via streaming) and fallback path (via ArrayBuffer) will produce different ETags. This breaks ETag consistency: the same resource will have different ETags depending on whether clone() succeeds, causing cache misses and validation failures.",
+      "suggestedCheck": "Create a test that generates an ETag for identical content via both the normal path (clone succeeds) and fallback path (clone fails). Verify the ETag values are identical. If they differ, the fallback must be redesigned to accumulate chunks the same way the streaming path does."
+    },
+    {
+      "severity": "high",
+      "file": "src/middleware/etag/index.ts",
+      "line": 110,
+      "category": "data-loss",
+      "rationale": "Line 110 reassigns `c.res = new Response(buffer, res)` after the body has been consumed by `res.arrayBuffer()`. The original response body is now exhausted and replaced. If any downstream middleware or code expects to read the original response body after this middleware, it will receive an empty or newly-constructed response. This is a silent behavioral change that could break request/response chains.",
+      "suggestedCheck": "Verify that no downstream middleware or application code reads `c.res.body` or calls `c.res.text()` / `c.res.json()` after the etag middleware runs. If they do, the body will be empty or incorrect. Consider whether the response reconstruction preserves all necessary properties and whether body consumption is idempotent in the calling context."
+    },
+    {
+      "severity": "medium",
+      "file": "src/middleware/etag/index.test.ts",
+      "line": 158,
+      "category": "test-gap",
+      "rationale": "The new test verifies that a response is returned with an ETag when clone() fails, but does not verify that the ETag value is consistent with what the normal path produces. The test does not compare ETags from both paths for identical content, so the hash inconsistency bug would not be caught by this test.",
+      "suggestedCheck": "Add a test that generates the same response content via both the normal path (clone succeeds) and fallback path (clone fails), then compare the ETag headers. They must be identical."
+    }
+  ],
+  "risk": "High",
+  "modelRiskScore": 0.8,
+  "derivedRiskScore": 0.9317,
+  "meta": {
+    "mode": "gate-agent-s3",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 10379,
+    "outputTokens": 7907,
+    "costUsd": 0.0544315,
+    "wallMs": 81740,
+    "toolCalls": 7
+  }
+}

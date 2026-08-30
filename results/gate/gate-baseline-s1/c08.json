@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3849,
+    "title": "fix(factory): correct the type of `factory.createMiddleware()`",
+    "baseSha": "3fba7a5e7d92cdb69c817dd15702508812305171",
+    "headSha": "dbfe2477ffdcb2eedf372ed32dd50b204aceb903",
+    "filesChanged": 2,
+    "additions": 43,
+    "deletions": 21
+  },
+  "summary": "This PR fixes the type signature of `factory.createMiddleware()` by adding an explicit return type annotation and correcting default type parameters in the Factory class from `any` to more specific defaults (`Env` and `string`). The changes are primarily type-level fixes with a new test case validating the middleware type behavior.",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/helper/factory/index.ts",
+      "line": 286,
+      "category": "breaking-change",
+      "rationale": "Changing default type parameters from `any` to `Env` and `string` could theoretically affect code that relied on the permissive `any` defaults, though this is unlikely in practice since `Env` is a well-defined base type and `string` is more restrictive than `any` for paths.",
+      "suggestedCheck": "Verify that no existing code in the repo or documented examples instantiate `Factory` or `createFactory` without explicit type parameters and rely on the old `any` defaults for unusual type scenarios."
+    },
+    {
+      "severity": "low",
+      "file": "src/helper/factory/index.test.ts",
+      "line": 354,
+      "category": "test-gap",
+      "rationale": "The new `createMiddleware` test uses only a type assertion (`Expect<Equal<...>>`) without runtime validation. If the type check passes but the middleware behaves incorrectly at runtime, the test would not catch it.",
+      "suggestedCheck": "Consider adding a runtime test that actually invokes the middleware and verifies it integrates correctly with a Hono app (similar to the `createApp` test above it)."
+    }
+  ],
+  "risk": "Low",
+  "modelRiskScore": 0.05,
+  "derivedRiskScore": 0.0975,
+  "meta": {
+    "mode": "gate-baseline-s1",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 1936,
+    "outputTokens": 431,
+    "costUsd": 0.004091,
+    "wallMs": 5228,
+    "toolCalls": 0
+  }
+}

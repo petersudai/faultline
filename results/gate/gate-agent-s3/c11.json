@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3888,
+    "title": "feat(router): support greedy matches with subsequent static components.",
+    "baseSha": "438983b3bb3d459bf9d9d2e5adf1d21a7e6588d8",
+    "headSha": "5f41ceeb32fe23e34a4a5f3f25e4b4b155bcf457",
+    "filesChanged": 6,
+    "additions": 138,
+    "deletions": 29
+  },
+  "summary": "This PR adds support for greedy regex patterns followed by static path components (e.g., `/:dirs{.+}/file.html`) by introducing lookahead assertions and a queue-based node traversal mechanism. The core risk is an untested edge case where the same greedy pattern is used both with and without a subsequent component, creating inconsistent cache keys and node structures.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/utils/url.ts",
+      "line": 62,
+      "category": "api-contract",
+      "rationale": "The pattern tuple's first element becomes the cacheKey (e.g., ':dirs{.+}#file.html') when lookahead is present, but remains the original label (e.g., ':dirs{.+}') otherwise. This is propagated to trie-router as the child node key (node.ts line 50). A greedy pattern registered both standalone ('/:dirs{.+}') and with a suffix ('/:dirs{.+}/file.html') would create two separate nodes with different keys, potentially causing routing conflicts or missed matches. No test covers this scenario.",
+      "suggestedCheck": "Add a test registering the same greedy pattern both standalone and with a subsequent component (e.g., router.add('GET', '/:dirs{.+}', 'standalone') and router.add('GET', '/:dirs{.+}/file.html', 'with-suffix')) and verify both routes match correctly without interference."
+    },
+    {
+      "severity": "medium",
+      "file": "src/router/trie-router/node.ts",
+      "line": 180,
+      "category": "unhandled-edge-case",
+      "rationale": "The queue-based lookahead mechanism (curNodesQueue) uses the component count (number of '/' in the matched string) as the queue index. If a greedy pattern matches multiple segments (e.g., 'foo/bar/baz'), the componentCount is 2, and the node is queued for processing 2 iterations later. However, if the path has fewer remaining segments than componentCount, the queued node is never processed. For example, a pattern '/:prefix{.+}/end' matching '/a/b/end' would queue the node at index 2, but only 1 iteration remains after the match, leaving the queued node unprocessed.",
+      "suggestedCheck": "Trace through a scenario where a greedy pattern consumes multiple segments and verify that queued nodes are processed even when fewer segments remain in the path. Add a test case like '/:prefix{.+}/end' matching '/a/b/c/end' to ensure the queued continuation is reached."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.15,
+  "derivedRiskScore": 0.4375,
+  "meta": {
+    "mode": "gate-agent-s3",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 2315,
+    "outputTokens": 6759,
+    "costUsd": 0.09416115,
+    "wallMs": 66659,
+    "toolCalls": 10
+  }
+}

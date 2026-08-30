@@ -1,0 +1,35 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3888,
+    "title": "feat(router): support greedy matches with subsequent static components.",
+    "baseSha": "438983b3bb3d459bf9d9d2e5adf1d21a7e6588d8",
+    "headSha": "5f41ceeb32fe23e34a4a5f3f25e4b4b155bcf457",
+    "filesChanged": 6,
+    "additions": 138,
+    "deletions": 29
+  },
+  "summary": "This PR adds support for greedy route patterns with subsequent static components (e.g., `/:dirs{.+}/file.html`). The implementation uses lookahead assertions in regex patterns and a queue mechanism to handle multi-segment greedy matches. A critical regex bug in the trie-router will cause incorrect routing behavior for greedy patterns matching multiple path segments.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "src/router/trie-router/node.ts",
+      "line": 180,
+      "category": "error-handling",
+      "rationale": "The regex `/\\\\/` matches backslashes, not forward slashes. It should be `/\\//g` to count the number of path segments consumed by a greedy match. This causes `componentCount` to always be 0, breaking the queue mechanism that handles multi-segment greedy matches. For example, a pattern like `/:dirs{.+}/file.html` matching `/foo/bar/file.html` should queue the child node at index 1 (one slash in `foo/bar`), but instead queues at index 0, causing incorrect routing.",
+      "suggestedCheck": "Change line 180 from `const componentCount = m[0].match(/\\\\//)?.length ?? 0` to `const componentCount = m[0].match(/\\//g)?.length ?? 0` and verify that test cases like 'Capture simple multiple directories' and 'Capture complex multiple directories' correctly match paths with multiple segments in the greedy parameter."
+    }
+  ],
+  "risk": "High",
+  "modelRiskScore": 0.75,
+  "derivedRiskScore": 0.55,
+  "meta": {
+    "mode": "gate-abl4-s2",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 2315,
+    "outputTokens": 7168,
+    "costUsd": 0.07271114999999999,
+    "wallMs": 77925,
+    "toolCalls": 10
+  }
+}

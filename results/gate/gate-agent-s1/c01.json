@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 4707,
+    "title": "perf(context): add fast path to c.json() matching c.text() optimization",
+    "baseSha": "69f303e0c3a45c09e7ec56611973751208737857",
+    "headSha": "a32bdde71473f1534789d0b11ea0eae710e611f7",
+    "filesChanged": 1,
+    "additions": 14,
+    "deletions": 6
+  },
+  "summary": "This PR refactors `c.json()` and `c.text()` to use a shared `#useFastPath()` helper that bypasses `#newResponse()` when no customization is present. The optimization is sound in principle, but `Response.json()` has subtly different behavior from the manual path—it may set different headers or handle edge cases differently—and this is not tested.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/context.ts",
+      "line": 711,
+      "category": "api-contract",
+      "rationale": "The fast path uses `Response.json(object)` directly, which is a standard Web API. However, the slow path calls `this.#newResponse(JSON.stringify(object), arg, setDefaultContentType('application/json', headers))`. These two paths may produce observably different responses: `Response.json()` sets its own Content-Type header and may handle serialization, charset, or other headers differently than the manual `JSON.stringify()` + `setDefaultContentType()` flow. Without explicit tests confirming equivalence, callers relying on specific header values or serialization behavior could see a change in output.",
+      "suggestedCheck": "Write a test that calls `c.json({...})` with no parameters and verify: (1) the Content-Type header matches what the slow path produces, (2) the response body is byte-for-byte identical, (3) any other headers (e.g., charset) are the same. Compare against the slow path output to confirm equivalence."
+    },
+    {
+      "severity": "low",
+      "file": "src/context.ts",
+      "line": 681,
+      "category": "test-gap",
+      "rationale": "The refactoring of `c.text()` to use `#useFastPath()` is correct, but the condition changed from `!this.#preparedHeaders && !this.#status && !arg && !headers && !this.finalized` to `this.#useFastPath() && !arg && !headers`. This is logically equivalent, but the extraction into a helper makes the intent clearer. No test explicitly covers the fast path for `c.text()` either.",
+      "suggestedCheck": "Add a test for `c.text('hello')` with no parameters to confirm the fast path is exercised and produces correct output (status 200, Content-Type: text/plain)."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.15,
+  "derivedRiskScore": 0.2875,
+  "meta": {
+    "mode": "gate-agent-s1",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 8689,
+    "outputTokens": 3066,
+    "costUsd": 0.046741,
+    "wallMs": 52960,
+    "toolCalls": 7
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3833,
+    "title": "fix(compress): don't compress server-sent events",
+    "baseSha": "2a68c594d24c282d0c9f9c286f114acf5019f383",
+    "headSha": "aee7f69dcfc60f379a7830241aa6e82c9db5718f",
+    "filesChanged": 2,
+    "additions": 14,
+    "deletions": 2
+  },
+  "summary": "This PR prevents the compress middleware from compressing Server-Sent Events (text/event-stream) by adding a negative lookahead to the regex. The fix is minimal and tested, but the regex change is complex and the test only validates one specific scenario without verifying the regex pattern itself.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/utils/compress.ts",
+      "line": 10,
+      "category": "test-gap",
+      "rationale": "The regex pattern was modified with a negative lookahead `(?!event-stream(?:[;\\s]|$))` inserted into the text/ branch, but there is no direct unit test of the regex itself. The only test is an integration test that checks the final byte length (13000) of an SSE response. This does not verify that the regex correctly matches/rejects text/event-stream with various parameter combinations (e.g., 'text/event-stream; charset=utf-8'), nor does it test that other text/* types still match.",
+      "suggestedCheck": "Add explicit unit tests for COMPRESSIBLE_CONTENT_TYPE_REGEX covering: (1) text/event-stream alone, (2) text/event-stream with charset parameter, (3) text/plain and other text/* types still match, (4) edge cases like 'text/event-stream;' or 'text/event-stream ' with trailing whitespace."
+    },
+    {
+      "severity": "low",
+      "file": "src/middleware/compress/index.test.ts",
+      "line": 166,
+      "category": "test-gap",
+      "rationale": "The SSE test only verifies that the response is not compressed by checking the byte length (13000). It does not verify that the response is actually valid SSE format or that the streaming behavior is correct. The test assumes 1000 iterations × ~13 bytes per SSE line = 13000, but does not assert the actual content structure.",
+      "suggestedCheck": "Consider adding a check that the response body contains valid SSE format (lines starting with 'data:') and that no compression headers (Content-Encoding) are present in the response."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.15,
+  "derivedRiskScore": 0.2875,
+  "meta": {
+    "mode": "gate-agent-s2",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 9337,
+    "outputTokens": 2813,
+    "costUsd": 0.030244,
+    "wallMs": 36644,
+    "toolCalls": 9
+  }
+}

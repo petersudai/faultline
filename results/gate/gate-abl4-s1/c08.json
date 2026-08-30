@@ -1,0 +1,26 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3849,
+    "title": "fix(factory): correct the type of `factory.createMiddleware()`",
+    "baseSha": "3fba7a5e7d92cdb69c817dd15702508812305171",
+    "headSha": "dbfe2477ffdcb2eedf372ed32dd50b204aceb903",
+    "filesChanged": 2,
+    "additions": 43,
+    "deletions": 21
+  },
+  "summary": "This PR fixes the type inference of `factory.createMiddleware()` by adding an explicit return type annotation and improving default type parameters. The changes are type-only with no runtime impact, and include a test case validating the fix. The PR looks low-risk.",
+  "findings": [],
+  "risk": "Low",
+  "modelRiskScore": 0.05,
+  "derivedRiskScore": 0,
+  "meta": {
+    "mode": "gate-abl4-s1",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 7478,
+    "outputTokens": 1552,
+    "costUsd": 0.0315523,
+    "wallMs": 30661,
+    "toolCalls": 6
+  }
+}

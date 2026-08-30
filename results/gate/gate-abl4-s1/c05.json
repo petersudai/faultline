@@ -1,0 +1,51 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 1560,
+    "title": "feat(app): `basePath` option for the constructor, deprecate `app.basePath()`",
+    "baseSha": "0e77991429d1eb820db9a95f582bd41e77067691",
+    "headSha": "3767c5374395f1893bf997bb379763fd52f80952",
+    "filesChanged": 9,
+    "additions": 126,
+    "deletions": 85
+  },
+  "summary": "This PR refactors Hono's constructor to add a `basePath` option and deprecates the `app.basePath()` method. The changes convert `_basePath` to a private field `#basePath`, update the `route()` method implementation, and add tests for the new option. The main concerns are: (1) `clone()` creates instances with default `#basePath = '/'` that are then explicitly corrected by callers, creating a temporary inconsistent state; (2) `Object.assign(this, options)` cannot assign the private `#basePath` field, making the code's intent unclear; (3) test coverage lacks verification of mixing the new constructor option with the deprecated `basePath()` method.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/hono-base.ts",
+      "line": 138,
+      "category": "error-handling",
+      "rationale": "The `clone()` method creates a new Hono instance without passing the current `#basePath` value. While the code explicitly sets `#basePath` after cloning in both `basePath()` and `route()` methods, the cloned instance temporarily has `#basePath = '/'` before being corrected. This could cause issues if the cloning logic is extended or if there are code paths where `#basePath` isn't explicitly set after cloning.",
+      "suggestedCheck": "Verify that all callers of `clone()` explicitly set `#basePath` afterward. Consider passing `basePath` to the constructor in `clone()` to ensure the cloned instance has the correct initial value: `new Hono<E, S, BasePath>({ router: this.router, getPath: this.getPath, basePath: this.#basePath as BasePath })`"
+    },
+    {
+      "severity": "medium",
+      "file": "src/hono-base.ts",
+      "line": 133,
+      "category": "api-contract",
+      "rationale": "The line `Object.assign(this, options)` attempts to assign properties from options to the instance, but since `#basePath` is a private field using the `#` syntax, `Object.assign` cannot set it. This means the `basePath` property in options is not actually assigned via `Object.assign`, making the code's intent unclear and potentially confusing for maintainers.",
+      "suggestedCheck": "Clarify the intent by either removing the `Object.assign` call (since only `router` and `getPath` are actually assigned and they're handled separately), or document why `Object.assign` is used when it cannot assign the `#basePath` field."
+    },
+    {
+      "severity": "low",
+      "file": "src/hono.test.ts",
+      "line": 292,
+      "category": "test-gap",
+      "rationale": "The test 'Nested route' creates apps with the new `basePath` constructor option, but there's no test that mixes the constructor option with the deprecated `app.basePath()` method (e.g., `new Hono({ basePath: '/api' }).basePath('/v1')`). This edge case should be tested to ensure backward compatibility and correct path merging.",
+      "suggestedCheck": "Add a test case that creates a Hono instance with the `basePath` constructor option and then calls the deprecated `app.basePath()` method to verify the paths are merged correctly."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.28,
+  "derivedRiskScore": 0.4656,
+  "meta": {
+    "mode": "gate-abl4-s1",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 2382,
+    "outputTokens": 4600,
+    "costUsd": 0.08103039999999999,
+    "wallMs": 57019,
+    "toolCalls": 9
+  }
+}

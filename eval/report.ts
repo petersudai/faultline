@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import type { Scorecard, Scored, CalibrationBin } from "./score.js";
 
 export interface RunResult {
@@ -8,6 +9,8 @@ export interface RunResult {
   fake: boolean;
   timestamp: string;
   caseIds: string[];
+  /** set by eval/aggregate.ts: this row pools N seeds (rates pooled, counts over N*12) */
+  seeds?: number;
   scorecard: Scorecard;
 }
 
@@ -39,13 +42,17 @@ const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
 const usd = (x: number) => `$${x.toFixed(4)}`;
 const secs = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
 const num = (x: number) => x.toFixed(3);
+/** tolerate results written before a metric existed */
+const numOpt = (x: number | undefined) => (x == null ? "—" : x.toFixed(3));
 
 function row(label: string, runs: RunResult[], get: (s: Scorecard) => string): string {
   return `| ${label} | ${runs.map((r) => get(r.scorecard)).join(" | ")} |`;
 }
 
 function metricTable(runs: RunResult[]): string {
-  const head = `| metric | ${runs.map((r) => r.mode).join(" | ")} |`;
+  const head = `| metric | ${runs
+    .map((r) => (r.seeds ? `${r.mode} †` : r.mode))
+    .join(" | ")} |`;
   const sep = `|--------|${runs.map(() => "------").join("|")}|`;
   const lines = [head, sep];
   lines.push(row("**Bal. accuracy — strict** (High = block)", runs, (s) => pct(s.balancedAccuracy)));
@@ -59,6 +66,8 @@ function metricTable(runs: RunResult[]): string {
   lines.push(row("Hard cases correct", runs, (s) => `${s.hardCorrect}/${s.hardTotal}`));
   lines.push(row("Brier — model score", runs, (s) => num(s.brierModel)));
   lines.push(row("Brier — derived score", runs, (s) => num(s.brierDerived)));
+  lines.push(row("AUC — model score (ranking)", runs, (s) => numOpt(s.aucModel)));
+  lines.push(row("AUC — derived score (ranking)", runs, (s) => numOpt(s.aucDerived)));
   lines.push(row("Mean cost / PR", runs, (s) => usd(s.meanCostUsd)));
   lines.push(row("Mean time / PR", runs, (s) => secs(s.meanWallMs)));
   return lines.join("\n");
@@ -134,6 +143,14 @@ export function renderSummary(runs: RunResult[]): string {
   out.push("");
   out.push(metricTable(runs));
   out.push("");
+  if (runs.some((r) => r.seeds)) {
+    out.push(
+      `_† pooled over ${Math.max(
+        ...runs.filter((r) => r.seeds).map((r) => r.seeds!),
+      )} seeds (rates / Brier / AUC are seed-pooled; confusion, root-cause and hard-case counts are over seeds×12)._`,
+    );
+    out.push("");
+  }
   for (const r of runs) {
     out.push(`## Confusion — ${r.mode}`);
     out.push("");
@@ -170,6 +187,9 @@ export function regenerateSummary(): string {
   return md;
 }
 
-if (import.meta.url === `file://${process.argv[1]?.replace(/\\/g, "/")}`) {
+const invokedDirectly =
+  !!process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href;
+if (invokedDirectly) {
   console.log(regenerateSummary());
 }

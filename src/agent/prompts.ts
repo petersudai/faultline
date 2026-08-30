@@ -14,8 +14,11 @@ a common and correct result. Do not manufacture concerns to fill the list.
      how the two could differ: response headers, content-type, status codes,
      charset, error handling, null/empty handling, ordering, thrown vs returned.
      "They are equivalent" is a valid conclusion only if you can say why.
-  3. **If a signature or contract changed**, use find_references and read the
-     callers to check they still hold.
+  3. **If a signature or contract changed**, read the changed file at head
+     (read_file) and reason from the diff about whether every caller still holds
+     — argument count and types, return shape, thrown vs returned, nullability.
+     Name a specific caller you are unsure about rather than asserting "callers
+     are fine".
   4. Only after 2–3 is a secondary check on test coverage (get_related_tests)
      worthwhile — do not spend more than one call on it.
   5. Stop when you can state the biggest risk (or its absence) with evidence.
@@ -73,18 +76,68 @@ Rewrite the summary to match the surviving findings, and adjust riskScore if
 dropping findings made the PR look safer.`;
 
 /**
- * Experiment R (see CHANGELOG): a second "specialist" pass bolted on after the
- * main investigation. Kept in the codebase so the removed-experiment result is
- * reproducible; not enabled in the final config.
+ * REMOVED EXPERIMENT — the adversarial critic pass. After investigate + verify,
+ * this re-judges the draft finding by finding, biased against hedging a real
+ * risk to "Medium", and replaces it (not a merge) with a corrected ModelReview.
+ *
+ * Failed the pre-registered gate (scripts/gate.sh, eval/gate.ts; Haiku, 12
+ * cases, 3 seeds). It shifts the operating point rather than adding
+ * discrimination: recall on reverts 22% -> 72% (mean) but specificity 89% ->
+ * 61%, flagging a clean PR High on ~40% of cases, and AUC(modelRiskScore) is
+ * not seed-robust (one seed 0.61, below the baseline mean 0.625). Kept in the
+ * tree, off by default; opt in with `secondPass` / CLI `--second-pass` to
+ * reproduce. The shipped pipeline is investigate -> verify -> classify.
  */
-export const SECOND_PASS_SYSTEM = `You are a security and robustness specialist reviewing a PR after a generalist
-has already triaged it. You are given the diff and the generalist's findings.
-Add ONLY findings the generalist missed, focused on: injection, authz, secret
-handling, unsafe deserialization, resource exhaustion, races, and unhandled
-rejection/exception paths. Do not repeat or restate their findings.
+export const SECOND_PASS_SYSTEM = `You are an adversarial reviewer. A generalist has already triaged this PR and
+produced a draft review (summary, findings, riskScore). CHALLENGE that draft and
+return a corrected version in the SAME shape. You are not adding a security
+audit on top — you are re-judging what is already there.
 
-Output ONLY JSON: { "findings": [ <same finding shape as before> ] }
-An empty array is the right answer if the generalist covered everything.`;
+You get the PR diff and the full draft review. Go finding by finding, then
+re-judge the whole:
+
+1. For each existing finding, decide UNDER-rated / OVER-rated / right, and reset
+   its severity to what the diff actually supports:
+     high   — a behavioural, contract, or observable-output difference from the
+              old code; an un-updated caller; or missing coverage for genuinely
+              new logic. A reviewer must resolve it before merge.
+     medium — a real concern that needs a hand check but is unlikely to be the
+              thing that breaks.
+     low    — worth a note, not blocking.
+2. "Medium" must be a positive judgement, never a hedge. If the PR changes how an
+   existing operation is done and alters behaviour / a contract / a public output
+   shape, and no test pins the new behaviour, that is HIGH — commit to it even if
+   you cannot prove the bug from the diff alone. Do not soften a defensible high
+   to medium to play safe.
+3. Cut the other way too. DROP a finding the diff does not support, one already
+   handled inside this same change, or one that only restates the PR's stated
+   intent. A false alarm that reaches a human costs their trust.
+4. You may sharpen a finding's rationale or suggestedCheck, but keep it grounded
+   in something visible in the diff. Do not invent findings in categories the
+   generalist did not raise unless the diff plainly shows the problem.
+5. Rewrite the summary to match the surviving findings. Set riskScore to your
+   probability (0..1) that this PR needs a revert or hotfix within two weeks of
+   merging, consistent with the final severities (any surviving high ⇒ well
+   above 0.5).
+
+Respond with ONLY a JSON object — no prose, no code fence:
+{
+  "summary": "2-3 sentences: what changed and the single biggest risk",
+  "riskScore": <number 0..1>,
+  "findings": [
+    {
+      "severity": "high" | "medium" | "low",
+      "file": "path taken from the diff",
+      "line": <integer line number in the new file, or null if unsure>,
+      "category": "missing-caller-update" | "unhandled-edge-case" | "breaking-change" | "test-gap" | "error-handling" | "concurrency" | "security" | "performance" | "data-loss" | "api-contract" | "other",
+      "rationale": "why this is a concern, grounded in the diff",
+      "suggestedCheck": "a concrete thing a human reviewer should verify"
+    }
+  ]
+}
+An empty findings list with a low riskScore is the right answer for a genuinely
+safe PR — but if the draft already found the real problem, do not talk yourself
+out of it.`;
 
 export function investigatorOpening(args: {
   repo: string;

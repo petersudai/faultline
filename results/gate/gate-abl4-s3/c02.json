@@ -1,0 +1,51 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 4198,
+    "title": "fix(etag): fallback if `res.clone()` is not supported",
+    "baseSha": "53656e126df4855969afa55603cd063343d65552",
+    "headSha": "6f22acef362356c58ce071eaae9decea6ac1d6a4",
+    "filesChanged": 3,
+    "additions": 44,
+    "deletions": 11
+  },
+  "summary": "This PR adds a fallback mechanism for environments where `res.clone()` is not supported (e.g., AWS Lambda). However, the fallback path processes the entire response body as a single ArrayBuffer and calls the digest generator once, while the original path streams chunks and calls the generator multiple times with accumulated hashes. This architectural difference will produce different ETag values for the same response body depending on which code path is taken, breaking ETag consistency and potentially causing cache validation failures.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "src/middleware/etag/index.ts",
+      "line": 101,
+      "category": "other",
+      "rationale": "The fallback path (lines 101-103) converts the response to an ArrayBuffer and passes it to generateDigest(), which then calls the generator once with the entire buffer. The original path (line 96) streams the body and calls the generator multiple times with accumulated hashes via mergeBuffers(). For the default SHA-1 generator and likely most custom generators, these two approaches produce different hash outputs for identical response bodies, causing ETag inconsistency.",
+      "suggestedCheck": "Verify that the ETag produced by the fallback path (when clone() fails) is identical to the ETag produced by the normal path for the same response body. Add a test comparing ETags from both paths for identical content."
+    },
+    {
+      "severity": "high",
+      "file": "src/middleware/etag/index.test.ts",
+      "line": 158,
+      "category": "test-gap",
+      "rationale": "The new test 'Should handle clone() not supported (Lambda-like environment)' verifies that an ETag is generated and the response body is correct, but does not verify that the ETag value matches what would be produced by the normal (clone-based) path. This test gap means the hash inconsistency bug would not be detected.",
+      "suggestedCheck": "Add a test that compares the ETag generated via the fallback path with the ETag generated via the normal path for identical response content, ensuring both paths produce the same ETag value."
+    },
+    {
+      "severity": "medium",
+      "file": "src/middleware/etag/digest.ts",
+      "line": 20,
+      "category": "other",
+      "rationale": "The new ArrayBuffer code path (lines 20-21) calls `generator(new Uint8Array(input))` once, while the streaming path (lines 23-30) calls the generator multiple times with accumulated results via mergeBuffers(). These produce different outputs for the same input data, especially for incremental hash algorithms.",
+      "suggestedCheck": "Ensure both code paths in generateDigest produce identical hash outputs for the same input data. Consider refactoring to accumulate all chunks first, then call the generator once with the complete buffer."
+    }
+  ],
+  "risk": "High",
+  "modelRiskScore": 0.75,
+  "derivedRiskScore": 0.8481,
+  "meta": {
+    "mode": "gate-abl4-s3",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 7808,
+    "outputTokens": 6918,
+    "costUsd": 0.0469155,
+    "wallMs": 72643,
+    "toolCalls": 7
+  }
+}

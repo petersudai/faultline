@@ -1,0 +1,26 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3833,
+    "title": "fix(compress): don't compress server-sent events",
+    "baseSha": "2a68c594d24c282d0c9f9c286f114acf5019f383",
+    "headSha": "aee7f69dcfc60f379a7830241aa6e82c9db5718f",
+    "filesChanged": 2,
+    "additions": 14,
+    "deletions": 2
+  },
+  "summary": "This PR fixes a bug where the compress middleware was compressing Server-Sent Events (SSE) instead of streaming them. The fix adds a negative lookahead to the COMPRESSIBLE_CONTENT_TYPE_REGEX to exclude `text/event-stream` content type from compression, since CompressionStream doesn't support manual flushing needed for SSE. A test case is added to verify SSE responses are not compressed. The change is minimal, targeted, and low-risk.",
+  "findings": [],
+  "risk": "Low",
+  "modelRiskScore": 0.05,
+  "derivedRiskScore": 0,
+  "meta": {
+    "mode": "gate-abl4-s1",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 7389,
+    "outputTokens": 1655,
+    "costUsd": 0.03133035,
+    "wallMs": 28024,
+    "toolCalls": 8
+  }
+}

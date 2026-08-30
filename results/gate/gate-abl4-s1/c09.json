@@ -1,0 +1,26 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3885,
+    "title": "fix(helper/adapter): correct `env` type",
+    "baseSha": "65edaf277a2dd3bb47406379904996ffdd3563e5",
+    "headSha": "a0b57dbe45d8aa72c890542ce1f3f73b755c98b4",
+    "filesChanged": 2,
+    "additions": 36,
+    "deletions": 12
+  },
+  "summary": "This PR fixes the TypeScript type signature of the `env` helper function to support more flexible type inference patterns. The change uses a conditional type to allow callers to either provide explicit generics to `env<T>()` or rely on type inference from the Hono context. The runtime behavior is unchanged, and test coverage has been expanded to verify all three usage patterns work correctly.",
+  "findings": [],
+  "risk": "Low",
+  "modelRiskScore": 0.05,
+  "derivedRiskScore": 0,
+  "meta": {
+    "mode": "gate-abl4-s1",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 6475,
+    "outputTokens": 1738,
+    "costUsd": 0.025461,
+    "wallMs": 35129,
+    "toolCalls": 6
+  }
+}

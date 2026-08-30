@@ -1,0 +1,51 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3832,
+    "title": "feat(etag): allow for custom hashing methods to be used to etag",
+    "baseSha": "6837649cd104b1886e6cb6653bf26d0700c4c3e6",
+    "headSha": "8fc6cfd20d261e44cb2adacfb0d2d9664f6c80b0",
+    "filesChanged": 3,
+    "additions": 50,
+    "deletions": 9
+  },
+  "summary": "This PR adds support for custom hashing algorithms to the etag middleware by accepting an optional `generateDigest` function parameter. The change allows users to override the default SHA-1 algorithm with alternatives like SHA-256. The main risk is that the signature of the internal `generateDigest` function changed, requiring all callers to be updated.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/middleware/etag/index.ts",
+      "line": 76,
+      "category": "api-contract",
+      "rationale": "The internal `generateDigest` function signature changed from `(stream: ReadableStream<Uint8Array> | null)` to `(stream: ReadableStream<Uint8Array> | null, generator: (body: Uint8Array) => ArrayBuffer | Promise<ArrayBuffer>)`. While this is an internal function, if any external code or tests directly import and call `generateDigest` from `digest.ts`, they will break. The diff shows the call site was updated, but there's a risk of missed callers.",
+      "suggestedCheck": "Search the codebase and any dependent packages for direct imports of `generateDigest` from `src/middleware/etag/digest.ts` to ensure no external callers are broken."
+    },
+    {
+      "severity": "low",
+      "file": "src/middleware/etag/index.ts",
+      "line": 86,
+      "category": "other",
+      "rationale": "The line `await c.res.blob() // Force using body` was removed from the 304 Not Modified response path. This line may have been important for ensuring the response body was fully consumed before sending a 304. Removing it could potentially leave the body unconsumed in some edge cases, though 304 responses should have no body by spec.",
+      "suggestedCheck": "Verify that removing `await c.res.blob()` does not cause issues with response body handling or resource cleanup in the 304 Not Modified case. Check if this line was necessary for any cleanup or side effects."
+    },
+    {
+      "severity": "low",
+      "file": "src/middleware/etag/index.test.ts",
+      "line": 23,
+      "category": "test-gap",
+      "rationale": "The new test only verifies that a custom SHA-256 algorithm produces the expected etag values. It does not test error handling if the custom `generateDigest` function throws an error or returns an invalid value. Edge cases like null/undefined returns or rejected promises are not covered.",
+      "suggestedCheck": "Consider adding tests for error scenarios: what happens if `generateDigest` throws, rejects, or returns an unexpected type? Verify the middleware handles these gracefully."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.15,
+  "derivedRiskScore": 0.3231,
+  "meta": {
+    "mode": "gate-baseline-s2",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 2391,
+    "outputTokens": 677,
+    "costUsd": 0.005776,
+    "wallMs": 8474,
+    "toolCalls": 0
+  }
+}

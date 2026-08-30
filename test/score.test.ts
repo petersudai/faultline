@@ -129,6 +129,30 @@ test("scoreAll: Brier score rewards calibrated scores", () => {
   assert.equal(scoreAll(wrong).brierModel, 1);
 });
 
+test("scoreAll: AUC = 1 when every reverted PR outscores every clean PR", () => {
+  const pairs = [
+    { c: testCase({ id: "r1", label: "risky" }), review: review({ risk: "High", modelRiskScore: 0.9 }) },
+    { c: testCase({ id: "r2", label: "risky" }), review: review({ risk: "High", modelRiskScore: 0.7 }) },
+    { c: testCase({ id: "n1", label: "clean" }), review: review({ risk: "Low", modelRiskScore: 0.3 }) },
+    { c: testCase({ id: "n2", label: "clean" }), review: review({ risk: "Low", modelRiskScore: 0.1 }) },
+  ];
+  assert.equal(scoreAll(pairs).aucModel, 1);
+});
+
+test("scoreAll: AUC = 0 when the ranking is exactly reversed, 0.5 on all ties", () => {
+  const reversed = [
+    { c: testCase({ id: "r1", label: "risky" }), review: review({ risk: "Low", modelRiskScore: 0.1 }) },
+    { c: testCase({ id: "n1", label: "clean" }), review: review({ risk: "High", modelRiskScore: 0.9 }) },
+  ];
+  assert.equal(scoreAll(reversed).aucModel, 0);
+
+  const tied = [
+    { c: testCase({ id: "r1", label: "risky" }), review: review({ modelRiskScore: 0.5 }) },
+    { c: testCase({ id: "n1", label: "clean" }), review: review({ modelRiskScore: 0.5 }) },
+  ];
+  assert.equal(scoreAll(tied).aucModel, 0.5);
+});
+
 test("scoreAll: calibration bins report observed revert rate", () => {
   const pairs = [
     { c: testCase({ id: "a", label: "risky" }), review: review({ risk: "High", modelRiskScore: 0.9 }) },

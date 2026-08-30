@@ -1,0 +1,51 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 871,
+    "title": "feat: use added app's errorHandler",
+    "baseSha": "c335a9272b6fabab5bb4407f1d1a0ae42a0ff5b5",
+    "headSha": "141cb9d18864912b2fffbfd2f278a1d24b6a4c7d",
+    "filesChanged": 6,
+    "additions": 141,
+    "deletions": 30
+  },
+  "summary": "This PR reorders parameters in the `compose` function (swapping `onNotFound` and `onError`), extracts default handlers as module-level constants, and implements a feature to use a sub-app's custom errorHandler when composing routes. While all call sites are updated and tests added, the parameter reordering is a breaking API change that could silently break external callers.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "src/compose.ts",
+      "line": 12,
+      "category": "breaking-change",
+      "rationale": "The `compose` function signature changes the order of optional parameters from `(middleware, onNotFound?, onError?)` to `(middleware, onError?, onNotFound?)`. This is a breaking change for any external code calling `compose` with positional arguments. An external caller passing `compose(handlers, notFoundFn, errorFn)` will now have those handlers swapped with no compile-time error (both are optional and have compatible signatures in many cases). The PR updates internal call sites but cannot control external usage.",
+      "suggestedCheck": "Verify whether `compose` is part of the public API or only internal. If public, this requires a major version bump and migration guide. If internal-only, document the scope clearly. Check if there are any external packages or examples in documentation that call `compose` directly."
+    },
+    {
+      "severity": "medium",
+      "file": "src/hono.ts",
+      "line": 124,
+      "category": "unhandled-edge-case",
+      "rationale": "The route composition logic at line 124 checks `app.errorHandler === errorHandler` to decide whether to wrap the handler with `compose`. This identity check is fragile: it assumes the default errorHandler is always the module-level `errorHandler` constant. However, if a sub-app's errorHandler is reassigned or if there are multiple Hono instances with different error handlers, the identity check may fail or succeed unexpectedly. The logic also only wraps with errorHandler but ignores the sub-app's notFoundHandler entirely, which may be intentional but is not documented.",
+      "suggestedCheck": "Confirm the intended behavior: should sub-app notFoundHandlers be composed into routes, or only errorHandlers? Add a comment explaining why the identity check is safe. Consider whether a flag or explicit configuration would be clearer than relying on reference equality."
+    },
+    {
+      "severity": "medium",
+      "file": "src/hono.test.ts",
+      "line": 1030,
+      "category": "test-gap",
+      "rationale": "The new test at line 1030 ('should be handled by sub') expects the sub-app's errorHandler to catch errors thrown in sub-app routes. However, the test does not verify that errors thrown in the parent app's middleware (like the one at line 941) are still caught by the parent's errorHandler. The test coverage for error propagation between nested apps is incomplete.",
+      "suggestedCheck": "Add a test case where an error is thrown in the parent app's middleware that wraps a sub-app route, and verify it is caught by the parent's errorHandler, not the sub-app's."
+    }
+  ],
+  "risk": "High",
+  "modelRiskScore": 0.35,
+  "derivedRiskScore": 0.7469,
+  "meta": {
+    "mode": "gate-agent-s3",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 6090,
+    "outputTokens": 3174,
+    "costUsd": 0.03357,
+    "wallMs": 41773,
+    "toolCalls": 8
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3800,
+    "title": "fix(context): single body overrides other returns",
+    "baseSha": "fa6f51bb1b110cddc7dc41cb7e531fab27fe871f",
+    "headSha": "92a1a129e6e9f430f93e35d217a7bd2a324c85cb",
+    "filesChanged": 3,
+    "additions": 36,
+    "deletions": 11
+  },
+  "summary": "This PR adds TypeScript type refinements to the `body()` method using generic type parameters and TypedResponse markers to track status codes in conditional branches. The runtime behavior is unchanged, but the type signature is significantly altered. A test bug is fixed where `c.res` was incorrectly used instead of a second `c.body()` call.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "src/context.ts",
+      "line": 730,
+      "category": "test-gap",
+      "rationale": "The `body()` method implementation now casts its return value to `ReturnType<BodyRespond>` to satisfy the new generic overload signatures. This cast bypasses TypeScript's type checking at runtime and could mask type mismatches. The new overloads introduce generic type parameters `<U extends ContentfulStatusCode>` and `<U extends StatusCode>` that are never actually used in the implementation—they exist only for type narrowing. Without a test that verifies the actual runtime behavior matches the type promises (e.g., that passing status 204 with data actually works or fails as expected), there is a risk that the types lie about what the code does.",
+      "suggestedCheck": "Verify that the `as ReturnType<BodyRespond>` cast is safe by checking whether the actual return value from `this.#newResponse()` can ever violate the type contract promised by the overloads. Add a runtime test that exercises edge cases like passing data with a 204 status code to confirm the behavior matches the type signature."
+    },
+    {
+      "severity": "medium",
+      "file": "src/context.ts",
+      "line": 119,
+      "category": "api-contract",
+      "rationale": "The overload signatures now include `TypedResponse<unknown, U, 'body'>` as an intersection type with `Response`. This changes the public type contract of the `body()` method. Callers that previously relied on the return type being exactly `Response` may now see different type narrowing behavior or fail type checks if they use `instanceof Response` or similar runtime checks. The `TypedResponse` marker is a type-only construct, but its presence in the return type signature is a breaking change to the API contract.",
+      "suggestedCheck": "Search the codebase and any known consumers for code that checks `c.body(...) instanceof Response` or uses type guards that assume the return type is exactly `Response`. Verify that the intersection type `Response & TypedResponse<...>` does not break any existing type assertions or runtime checks."
+    },
+    {
+      "severity": "low",
+      "file": "src/types.test.ts",
+      "line": 2331,
+      "category": "test-gap",
+      "rationale": "The new test `'.body() not override other responses in hono client'` verifies type-level union narrowing across conditional branches, which is the intended benefit of this PR. However, it only tests the type output via `expectTypeOf`, not the runtime behavior. If the implementation of `body()` or `#newResponse()` has a bug that causes it to return the wrong status code at runtime, this test would not catch it.",
+      "suggestedCheck": "Consider adding a runtime assertion to the new test that actually calls the endpoint and verifies the status codes are correct, not just that the types are correct."
+    }
+  ],
+  "risk": "High",
+  "modelRiskScore": 0.15,
+  "derivedRiskScore": 0.6794,
+  "meta": {
+    "mode": "gate-agent-s3",
+    "model": "claude-haiku-4-5-20251001",
+    "inputTokens": 9444,
+    "outputTokens": 3399,
+    "costUsd": 0.05530135,
+    "wallMs": 46589,
+    "toolCalls": 12
+  }
+}

@@ -59,8 +59,9 @@ function parseArgs(): Args {
       ? (toolsArg.split(",").map((s) => s.trim()) as ToolName[])
       : ALL_TOOLS,
     verify: !has("--no-verify"),
-    // the second (adversarial) pass is the final config — on by default
-    secondPass: !has("--no-second-pass"),
+    // adversarial critic pass: removed experiment (failed the pre-registered
+    // gate) — off by default, opt in with --second-pass to reproduce
+    secondPass: has("--second-pass"),
     maxSteps: Number(val("--max-steps") ?? String(LIMITS.agentMaxSteps)),
   };
 }
@@ -329,6 +330,7 @@ async function main(): Promise<void> {
       `root-cause ${scorecard.rootCauseHits}/${scorecard.riskyCount} · ` +
       `false-alarm ${scorecard.falseAlarmRate.toFixed(2)} · ` +
       `Brier(model) ${scorecard.brierModel.toFixed(3)} · ` +
+      `AUC(model) ${scorecard.aucModel.toFixed(3)} · ` +
       `total $${scorecard.totalCostUsd.toFixed(4)}`,
   );
   if (errors.length) {
