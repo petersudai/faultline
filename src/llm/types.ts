@@ -36,6 +36,8 @@ export interface LlmLike {
     system: string;
     messages: Message[];
     tools?: ToolSpec[];
+    /** force this tool to be called this turn (Anthropic tool_choice) */
+    forceTool?: string;
     maxTokens?: number;
   }): Promise<LlmResult>;
 }

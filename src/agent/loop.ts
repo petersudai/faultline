@@ -145,6 +145,9 @@ export async function runAgent(
           ]
         : messages,
       tools: specs,
+      // on the last-ditch step, make submit_review mandatory — some models
+      // (Sonnet 5) otherwise keep replying in text and never terminate
+      ...(forced ? { forceTool: "submit_review" } : {}),
       maxTokens: 3500,
     });
     log.step({

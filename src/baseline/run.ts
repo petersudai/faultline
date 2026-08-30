@@ -2,6 +2,7 @@ import { LlmClient } from "../llm/anthropic.js";
 import { parseWith } from "../llm/json.js";
 import { ModelReview, Review, type PrRef } from "../review/schema.js";
 import { classifyRisk, derivedRiskScore } from "../review/classify.js";
+import { SUBMIT_TOOL } from "../agent/toolDefs.js";
 import { LIMITS } from "../config.js";
 import type { PrMetadata } from "../github/client.js";
 import type { LlmLike } from "../llm/types.js";
@@ -10,8 +11,11 @@ import type { LlmLike } from "../llm/types.js";
  * The BASELINE. Two variants share this one code path:
  *   "baseline"      — title + body + raw diff, nothing else
  *   "baseline-plus" — the above plus the full text of every changed file (head)
- * Both are a single model call: no tools, no loop, no verify. Same output
- * contract as the agent, so the only variable is the agentic machinery.
+ * Both are a single model call: no loop, no verify. The assessment comes back
+ * as a forced `submit_review` tool call (same terminator the agent path uses) —
+ * asking a model for a bare JSON object as its only text is unreliable on
+ * Sonnet 5 in particular. A text-JSON fallback keeps the offline FakeLlm and
+ * any model that answers in prose working.
  */
 const SYSTEM = `You are a senior software engineer doing PRE-MERGE RISK TRIAGE.
 Decide how much careful human attention a pull request needs before merging.
@@ -28,24 +32,11 @@ Severity (drives the risk label): high = would plausibly break production or a
 documented contract as-is; medium = a real concern to confirm by hand; low =
 worth noting, not blocking.
 
-Respond with ONLY a JSON object (no prose, no code fence needed) of the form:
-{
-  "summary": "2-3 sentences on what this PR changes and the biggest risk",
-  "riskScore": <number 0..1 — your probability that this PR will need a revert or hotfix within two weeks of merging>,
-  "findings": [
-    {
-      "severity": "high" | "medium" | "low",
-      "file": "path taken from the diff",
-      "line": <integer line number in the new file, or null if unsure>,
-      "category": "missing-caller-update" | "unhandled-edge-case" | "breaking-change" | "test-gap" | "error-handling" | "concurrency" | "security" | "performance" | "data-loss" | "api-contract" | "other",
-      "rationale": "why this is a concern, grounded in the diff",
-      "suggestedCheck": "a concrete thing a human reviewer should verify"
-    }
-  ]
-}
-
-Only report concerns you can justify from the evidence given. If nothing is
-concerning, return "findings": [] and a low riskScore.`;
+Call **submit_review** exactly once with your assessment: a 2-3 sentence
+summary, a riskScore (0..1 — your probability the PR needs a revert or hotfix
+within two weeks), and findings. Only report concerns you can justify from the
+evidence given; an empty findings list with a low riskScore is correct for a
+safe PR.`;
 
 function mustHaveKey(): string {
   throw new Error("runBaseline: provide either `apiKey` or an `llm` instance");
@@ -115,10 +106,15 @@ export async function runBaseline(args: BaselineArgs): Promise<Review> {
   const res = await llm.call({
     system: SYSTEM,
     messages: [{ role: "user", content: parts.join("\n") }],
+    tools: [SUBMIT_TOOL],
+    forceTool: "submit_review",
     maxTokens: 3000,
   });
 
-  const model = parseWith(ModelReview, res.text);
+  const submit = res.toolUses.find((t) => t.name === "submit_review");
+  const model = submit
+    ? parseWith(ModelReview, JSON.stringify(submit.input))
+    : parseWith(ModelReview, res.text); // fallback: FakeLlm / text-only replies
   const usage = llm.usage;
 
   const pr: PrRef = {

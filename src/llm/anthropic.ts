@@ -98,6 +98,7 @@ export class LlmClient {
     system: string;
     messages: Message[];
     tools?: ToolSpec[];
+    forceTool?: string;
     maxTokens?: number;
   }): Promise<LlmResult> {
     if (this.inTok + this.cacheReadTok + this.cacheWriteTok + this.outTok > this.budget) {
@@ -123,6 +124,11 @@ export class LlmClient {
     // for the 4.x models where it still lowers variance.
     const acceptsTemperature = !/(sonnet|opus|fable)-5/.test(this.model);
 
+    const toolChoice =
+      params.forceTool && tools
+        ? { type: "tool" as const, name: params.forceTool }
+        : undefined;
+
     const res = await this.withRetry(() =>
       this.client.messages.create({
         model: this.model,
@@ -131,6 +137,7 @@ export class LlmClient {
         system: system as never,
         messages: this.withMovingBreakpoint(params.messages),
         ...(tools ? { tools } : {}),
+        ...(toolChoice ? { tool_choice: toolChoice } : {}),
       }),
     );
 
