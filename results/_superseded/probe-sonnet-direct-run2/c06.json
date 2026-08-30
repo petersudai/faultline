@@ -1,0 +1,51 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 871,
+    "title": "feat: use added app's errorHandler",
+    "baseSha": "c335a9272b6fabab5bb4407f1d1a0ae42a0ff5b5",
+    "headSha": "141cb9d18864912b2fffbfd2f278a1d24b6a4c7d",
+    "filesChanged": 6,
+    "additions": 141,
+    "deletions": 30
+  },
+  "summary": "This PR makes app.route() propagate a mounted sub-app's custom errorHandler by wrapping its route handlers via compose(), and reorders compose()'s parameters (onError before onNotFound), with tests added for both onError and notFound scenarios. The main risk is the breaking change to compose()'s parameter order since it's exported and could affect external callers with a different signature order, plus a behavioral asymmetry where onError propagates from mounted sub-apps but notFoundHandler does not, which may confuse users expecting symmetric behavior.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/hono.ts",
+      "line": 122,
+      "category": "api-contract",
+      "rationale": "The compose() function argument order was swapped (onError before onNotFound). This is a breaking change for any external code (or middleware packages) directly calling compose() with the old (middleware, onNotFound, onError) signature. Since compose is exported, third-party consumers who imported it directly would silently get wrong behavior (their notFound handler treated as errorHandler and vice versa) without a type error catch in JS usage, only caught by TS type mismatch in strict typed code.",
+      "suggestedCheck": "Check if compose is part of the public API/exports and search for external usages or documentation referencing compose's parameter order; consider a major version bump or keeping backward-compatible named options."
+    },
+    {
+      "severity": "medium",
+      "file": "src/hono.ts",
+      "line": 130,
+      "category": "unhandled-edge-case",
+      "rationale": "In route(), sub-app's notFoundHandler is not wrapped/composed the way errorHandler is — only errorHandler is applied via compose when it differs from default. This means when a sub app defines a custom notFound handler but the route is matched (not a 404), that's fine, but the new test 'notFound' shows sub's custom notFound handler is bypassed and app's notFound is always used for mounted routes, which may not match the intended feature (test expectcs app's handler always wins for implicit 404 in sub-mounted paths) — this looks intentional per tests but is a behavioral asymmetry between error and notFound handling that could confuse users who expect symmetric behavior between onError and notFound when mounted via app.route().",
+      "suggestedCheck": "Verify product intent: should sub.notFound() only apply for its own standalone app.request() calls and never for mounted sub-apps, while sub.onError() applies even when mounted? Confirm this asymmetry is documented so users aren't surprised that only errorHandler carries over on mount but notFoundHandler doesn't."
+    },
+    {
+      "severity": "low",
+      "file": "src/hono.ts",
+      "line": 125,
+      "category": "performance",
+      "rationale": "When a sub-app has a custom errorHandler, every route handler from that sub-app gets wrapped via compose([r.handler], app.errorHandler) at route-mount time, adding an extra layer of function composition/overhead per request for mounted sub-apps with custom error handling. This is likely negligible but worth confirming performance impact for apps with many nested sub-routes.",
+      "suggestedCheck": "Benchmark route composition overhead for apps with many sub-routes that define custom onError handlers."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.25,
+  "derivedRiskScore": 0.4656,
+  "meta": {
+    "mode": "probe-sonnet-direct",
+    "model": "claude-sonnet-5",
+    "inputTokens": 18,
+    "outputTokens": 1159,
+    "costUsd": 0.03505305,
+    "wallMs": 12404,
+    "toolCalls": 0
+  }
+}

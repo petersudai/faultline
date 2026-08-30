@@ -1,0 +1,26 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3800,
+    "title": "fix(context): single body overrides other returns",
+    "baseSha": "fa6f51bb1b110cddc7dc41cb7e531fab27fe871f",
+    "headSha": "92a1a129e6e9f430f93e35d217a7bd2a324c85cb",
+    "filesChanged": 3,
+    "additions": 36,
+    "deletions": 11
+  },
+  "summary": "This PR is a type-only fix: `Context#body()`'s return type is changed from plain `Response` to `Response & TypedResponse<..., U, 'body'>`, mirroring `.text()/.json()`. The runtime implementation of `#newResponse`/`body` is unchanged aside from a cast, so there is no behavioral change to actual HTTP responses. The purpose is to fix RPC/hc client type inference so a `c.body()` branch no longer widens/overrides other branches' typed statuses (issue #3798), and a types.test.ts case verifies this via `expectTypeOf`.",
+  "findings": [],
+  "risk": "Low",
+  "modelRiskScore": 0.1,
+  "derivedRiskScore": 0,
+  "meta": {
+    "mode": "probe-sonnet-deep",
+    "model": "claude-sonnet-5",
+    "inputTokens": 12,
+    "outputTokens": 2299,
+    "costUsd": 0.08171625,
+    "wallMs": 31061,
+    "toolCalls": 4
+  }
+}

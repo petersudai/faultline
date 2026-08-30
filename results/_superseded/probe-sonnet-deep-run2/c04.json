@@ -1,0 +1,35 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3171,
+    "title": "fix(helper/adapter): don't check `navigator` is `undefined`",
+    "baseSha": "0535579de5af90319165304be409ea9b7d5d47f3",
+    "headSha": "5c20ec4d764920eab85ae93d8c7113ebc2c6646f",
+    "filesChanged": 1,
+    "additions": 6,
+    "deletions": 2
+  },
+  "summary": "The PR fixes runtime detection in `getRuntimeKey()` by wrapping the `navigator.userAgent` access in a try/catch instead of gating on `typeof navigator !== 'undefined'`. This addresses environments (e.g. Cloudflare Pages) where `navigator` exists but throws on access. The change is small and self-contained, but no test was added to cover this specific scenario.",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/helper/adapter/index.ts",
+      "line": null,
+      "category": "test-gap",
+      "rationale": "No test was added to cover the specific Cloudflare Pages scenario (navigator present but throwing on property access) that motivated this fix; existing test only checks the Node.js runtime path, so a regression here wouldn't be caught by CI.",
+      "suggestedCheck": "Add a unit test that mocks a global `navigator` whose `userAgent` getter throws, and assert `getRuntimeKey()` still falls through correctly instead of propagating the exception."
+    }
+  ],
+  "risk": "Low",
+  "modelRiskScore": 0.1,
+  "derivedRiskScore": 0.05,
+  "meta": {
+    "mode": "probe-sonnet-deep",
+    "model": "claude-sonnet-5",
+    "inputTokens": 10,
+    "outputTokens": 4644,
+    "costUsd": 0.08738865,
+    "wallMs": 49115,
+    "toolCalls": 4
+  }
+}

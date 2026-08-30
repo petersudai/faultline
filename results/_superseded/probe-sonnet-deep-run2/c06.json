@@ -1,0 +1,51 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 871,
+    "title": "feat: use added app's errorHandler",
+    "baseSha": "c335a9272b6fabab5bb4407f1d1a0ae42a0ff5b5",
+    "headSha": "141cb9d18864912b2fffbfd2f278a1d24b6a4c7d",
+    "filesChanged": 6,
+    "additions": 141,
+    "deletions": 30
+  },
+  "summary": "This PR makes app.route() propagate a sub-app's custom errorHandler to the parent by wrapping sub-route handlers with compose() when the sub-app's errorHandler differs from the module-level default (detected via reference equality), and it swaps the parameter order of compose(onNotFound, onError) to compose(onError, onNotFound). All known internal call sites (hono.ts, compose.test.ts) were updated consistently and new tests cover the intended errorHandler propagation behavior. The main risks are the reference-equality check for detecting a 'customized' errorHandler (subtle edge cases), the reordered compose() parameters being a breaking change for any external/undocumented use of that function, and a possible performance regression from wrapping sub-route handlers in an extra compose() call.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/compose.ts",
+      "line": 10,
+      "category": "api-contract",
+      "rationale": "The compose() function's parameter order changed (onNotFound, onError) -> (onError, onNotFound), a public-ish internal API. Any external code or middleware package calling compose() directly (not just via Hono.ts) with the old positional order will silently break - passing a NotFoundHandler where ErrorHandler is expected, or vice versa. All internal callers (hono.ts, compose.test.ts) were updated correctly, but compose is exported from the module and third-party code/tests outside this repo could depend on old ordering.",
+      "suggestedCheck": "Confirm compose is not part of the publicly documented/exported API (check src/index.ts exports) and, if it is used by any middleware packages or examples, verify they were updated."
+    },
+    {
+      "severity": "medium",
+      "file": "src/hono.ts",
+      "line": 124,
+      "category": "other",
+      "rationale": "route() now uses `app.errorHandler === errorHandler` (reference equality to the module-level default) to decide whether to wrap route handlers in compose with the sub-app's errorHandler. If a sub-app resets its errorHandler back to something that behaves identically to the default (e.g., re-assigns via a helper that isn't the exact same function reference), this check could incorrectly treat it as customized and unnecessarily wrap every route in an extra compose call, adding overhead per route and subtly changing execution behavior (e.g., middleware ordering, this-binding capture) versus the previous simple handler assignment.",
+      "suggestedCheck": "Confirm the new notFound test case '/sub/implicit-404 should be handled by app' matches expectations; also verify wrapping with compose does not change the number of times middleware in the sub-app runs or breaks streaming/aborted response handling."
+    },
+    {
+      "severity": "low",
+      "file": "src/hono.ts",
+      "line": 124,
+      "category": "performance",
+      "rationale": "When a sub-app has a custom errorHandler, route() now wraps every route handler in a compose([r.handler], app.errorHandler) call, replacing what was previously a direct handler reference. This adds an extra function call layer per request for every route mounted from that sub-app, which is a minor perf regression but should be verified as an accepted tradeoff.",
+      "suggestedCheck": "Benchmark or reason whether wrapping handlers via compose per sub-route affects the 'single handler fast path' optimization in dispatch() (which checks result.handlers.length === 1); confirm the wrapped compose-based handler still counts as a single handler and benefits from that fast path."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.25,
+  "derivedRiskScore": 0.4656,
+  "meta": {
+    "mode": "probe-sonnet-deep",
+    "model": "claude-sonnet-5",
+    "inputTokens": 38,
+    "outputTokens": 19877,
+    "costUsd": 0.49332465000000003,
+    "wallMs": 220949,
+    "toolCalls": 7
+  }
+}

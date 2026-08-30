@@ -1,0 +1,35 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3498,
+    "title": "fix(factory): relax Bindings and Variables for `createMiddleware`",
+    "baseSha": "31b4cd414c258db841cce77473615c13fc611d8b",
+    "headSha": "f2e0059be4ac67f910edd2e55c44523486acca21",
+    "filesChanged": 2,
+    "additions": 44,
+    "deletions": 3
+  },
+  "summary": "This PR is a pure type-level change to `createMiddleware` in the factory helper — it introduces `AddAnyToEnv` to fill in `any` for whichever of `Bindings`/`Variables` isn't explicitly specified, so nested middlewares with partially-specified `Env` generics no longer cause a TS compile error. There is no runtime behavior change (generic defaults only affect type inference, not emitted JS), and a test was added that exercises the previously-failing pattern. One residual concern is that this intentional type relaxation could also mask genuine Bindings/Variables mismatches in other user code that relied on the previous stricter inference.",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/helper/factory/index.ts",
+      "line": 245,
+      "category": "api-contract",
+      "rationale": "AddAnyToEnv widens the unspecified half of Env to `any`, which relaxes type-safety intentionally to fix the reported false-positive error, but could also mask genuine Bindings/Variables mismatches in other user code that relied on the previous stricter inference (e.g. a middleware declaring only Variables would now get `any` Bindings instead of `{}`/unknown).",
+      "suggestedCheck": "Confirm existing typed test suites/consumers (e.g. `hono/dist` type tests, `agents-sdk` etc. if present) still catch genuine binding/variable typos after this relaxation; consider adding a type-only negative test (expectTypeOf) proving real mismatches are still caught."
+    }
+  ],
+  "risk": "Low",
+  "modelRiskScore": 0.08,
+  "derivedRiskScore": 0.05,
+  "meta": {
+    "mode": "probe-sonnet-deep",
+    "model": "claude-sonnet-5",
+    "inputTokens": 16,
+    "outputTokens": 4383,
+    "costUsd": 0.1227195,
+    "wallMs": 55191,
+    "toolCalls": 6
+  }
+}

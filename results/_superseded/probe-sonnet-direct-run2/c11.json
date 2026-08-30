@@ -1,0 +1,59 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3888,
+    "title": "feat(router): support greedy matches with subsequent static components.",
+    "baseSha": "438983b3bb3d459bf9d9d2e5adf1d21a7e6588d8",
+    "headSha": "5f41ceeb32fe23e34a4a5f3f25e4b4b155bcf457",
+    "filesChanged": 6,
+    "additions": 138,
+    "deletions": 29
+  },
+  "summary": "This PR enhances greedy path-parameter matching (e.g. ':dirs{.+}') to work correctly when followed by subsequent static path components, updating LinearRouter, TrieRouter, and the shared getPattern utility, with tests added across all three router implementations. The main risks are: (1) treating following static segments as raw regex lookaheads without escaping special regex characters, which could misbehave for static segments containing regex metacharacters, and (2) a new queuing mechanism in TrieRouter based on counting '/' in matched substrings that could have subtle off-by-one issues for edge-case paths; RegExpRouter also appears not to fully support the new complex cases per the skip list, indicating inconsistent behavior across router backends.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/utils/url.ts",
+      "line": null,
+      "category": "unhandled-edge-case",
+      "rationale": "The lookahead pattern is built as new RegExp(`^${match[2]}(?=/${next})`) where `next` is a raw path segment taken from the route definition. If `next` contains regex special characters (e.g. '.', '+', '(', etc., which are common in static path segments like 'file.html'), they will be interpreted as regex metacharacters rather than literal characters. For example a static segment 'file.html' would have '.' match any character, which could cause unintended matches (e.g. 'fileXhtml') though functionally benign here since it's just a lookahead over a static string, it's still an incorrect assumption that all static path components are regex-safe. Other regex special characters like '+', '*', '(', ')' could raise exceptions or behave differently than intended.",
+      "suggestedCheck": "Test route definitions with special regex characters in the static segment following a capturing group, e.g. '/:dirs{.+}/file(v2).html' or '/:id{.+}/a+b', to confirm no exception is thrown and matching behaves as expected for literal characters."
+    },
+    {
+      "severity": "medium",
+      "file": "src/router/trie-router/node.ts",
+      "line": null,
+      "category": "unhandled-edge-case",
+      "rationale": "The new logic uses componentCount computed from `m[0].match(/\\//)?.length` to determine how many path components ahead to enqueue nodes for later processing (curNodesQueue). This assumes matched capture length maps directly to number of '/' characters, but if the matched greedy segment ends with a trailing slash or contains encoded slashes, the count may be off. Additionally, `curNodesQueue` grows unbounded based on componentCount and is shifted per iteration; deeply nested paths or unusual capture patterns could cause off-by-one errors in when nodes get merged back into curNodes, causing missed or duplicate matches on some inputs.",
+      "suggestedCheck": "Add tests for greedy captures containing trailing/leading slashes, doubled slashes, or capturing zero '/' characters, verifying correct handler resolution and that no extra/missing matches occur due to the componentCount queue timing."
+    },
+    {
+      "severity": "low",
+      "file": "src/router/linear-router/router.ts",
+      "line": null,
+      "category": "api-contract",
+      "rationale": "LinearRouter's lookahead only checks parts[j+1][1] (the second character) to determine if it starts with ':' or '*', which works when segments are non-empty, but if `next` is an empty string (e.g. trailing slash causing an empty path segment) this indexing could yield undefined, silently skipping the lookahead rather than throwing, which may cause inconsistent behavior between routers (linear vs trie vs reg-exp) for edge-case paths with empty segments.",
+      "suggestedCheck": "Test routes with trailing/double slashes combined with a greedy capture group across LinearRouter, TrieRouter, and RegExpRouter and confirm identical matching results."
+    },
+    {
+      "severity": "low",
+      "file": "src/router/reg-exp-router/router.test.ts",
+      "line": null,
+      "category": "test-gap",
+      "rationale": "Two of the newly added shared test cases ('Capture complex multiple directories' subtests) are explicitly listed to be skipped for RegExpRouter, meaning the new greedy-match-with-static-suffix feature is not verified (or is known unsupported) on this router implementation, creating an inconsistency across router backends that consumers may not expect.",
+      "suggestedCheck": "Confirm whether RegExpRouter is expected to support this feature per the issue (#3851); if not, document the limitation, otherwise investigate why these tests fail for RegExpRouter and add support or an explicit compatibility note."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.35,
+  "derivedRiskScore": 0.4923,
+  "meta": {
+    "mode": "probe-sonnet-direct",
+    "model": "claude-sonnet-5",
+    "inputTokens": 18,
+    "outputTokens": 1613,
+    "costUsd": 0.0426843,
+    "wallMs": 17999,
+    "toolCalls": 0
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3849,
+    "title": "fix(factory): correct the type of factory.createMiddleware()",
+    "baseSha": "3fba7a5e7d92cdb69c817dd15702508812305171",
+    "headSha": "dbfe2477ffdcb2eedf372ed32dd50b204aceb903",
+    "filesChanged": 0,
+    "additions": 0,
+    "deletions": 0
+  },
+  "summary": "[review failed: Model output failed schema validation:]",
+  "findings": [],
+  "risk": "Low",
+  "modelRiskScore": 0.5,
+  "derivedRiskScore": 0,
+  "meta": {
+    "mode": "probe-sonnet-direct",
+    "model": "error",
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "costUsd": 0,
+    "wallMs": 0,
+    "toolCalls": 0
+  }
+}

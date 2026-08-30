@@ -1,0 +1,35 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 1560,
+    "title": "feat(app): `basePath` option for the constructor, deprecate `app.basePath()`",
+    "baseSha": "0e77991429d1eb820db9a95f582bd41e77067691",
+    "headSha": "3767c5374395f1893bf997bb379763fd52f80952",
+    "filesChanged": 9,
+    "additions": 126,
+    "deletions": 85
+  },
+  "summary": "The PR adds a `basePath` option to the Hono constructor, refactors `_basePath` to a private class field (`#basePath`), and deprecates `app.basePath()`. It also simplifies `route()` to no longer route through the deprecated `basePath()` method, instead cloning and setting `#basePath` directly, and removes the one-argument `route(path)` overload (which was already deprecated for removal in v4). Tests were updated/added to cover the new option alongside existing deprecated usage, but the removal of the distinct one-argument `route()` overload changes its inferred return type at the type level.",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/hono-base.ts",
+      "line": null,
+      "category": "api-contract",
+      "rationale": "The one-argument `route<SubPath extends string>(path: SubPath)` overload (typed to return Hono<E, RemoveBlankRecord<S>, BasePath>) was removed from the type signatures, leaving only the two-argument overload with an optional `app` param. Any caller relying on the removed overload's distinct return type (RemoveBlankRecord<S>) for one-arg route() calls will now get the merged-schema type instead, which is a type-level behavior change though the JS-level call still works via the optional second param.",
+      "suggestedCheck": "Search for any external consumers or internal usages of `app.route('/x')` (single-arg) and confirm TypeScript type inference is still acceptable; check hono.test.ts type-level assertions for route() with a single argument."
+    }
+  ],
+  "risk": "Low",
+  "modelRiskScore": 0.1,
+  "derivedRiskScore": 0.05,
+  "meta": {
+    "mode": "probe-sonnet-deep",
+    "model": "claude-sonnet-5",
+    "inputTokens": 38,
+    "outputTokens": 21329,
+    "costUsd": 0.52102125,
+    "wallMs": 225201,
+    "toolCalls": 10
+  }
+}

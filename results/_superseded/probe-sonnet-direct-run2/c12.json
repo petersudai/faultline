@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3833,
+    "title": "fix(compress): don't compress server-sent events",
+    "baseSha": "2a68c594d24c282d0c9f9c286f114acf5019f383",
+    "headSha": "aee7f69dcfc60f379a7830241aa6e82c9db5718f",
+    "filesChanged": 2,
+    "additions": 14,
+    "deletions": 2
+  },
+  "summary": "This PR fixes a bug where compress middleware buffered server-sent events (SSE) instead of streaming them, by excluding text/event-stream from the compressible content-type regex. The change is small, targeted, and includes a test verifying SSE responses aren't compressed; risk is low since it only narrows what gets compressed and doesn't change any public API surface.",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/utils/compress.ts",
+      "line": null,
+      "category": "unhandled-edge-case",
+      "rationale": "The regex now excludes text/event-stream from compressible content types using a negative lookahead. This is a narrow, well-scoped change but relies on regex correctness for edge cases like 'text/event-stream;charset=utf-8' or content types with extra whitespace; a subtle regex bug could either still compress SSE (regression not fixed) or incorrectly exclude other text/* types if the lookahead is malformed.",
+      "suggestedCheck": "Manually verify the regex against variations like 'text/event-streamx' (should still match, i.e. still compressible), 'text/event-stream; charset=utf-8' (should not match), and 'text/event-stream' alone, to ensure lookahead boundaries are correct."
+    },
+    {
+      "severity": "low",
+      "file": "src/middleware/compress/index.test.ts",
+      "line": null,
+      "category": "test-gap",
+      "rationale": "The new test checks byte length equality (13000) as an implicit proxy for 'not compressed', which is somewhat fragile and implementation-detail-dependent (depends on exact SSE payload size), but is a reasonable smoke test for the fix.",
+      "suggestedCheck": "Confirm the test asserts more directly that no Content-Encoding header is set on the SSE response, in addition to the byte-length check, to make the test more robust against unrelated payload size changes."
+    }
+  ],
+  "risk": "Low",
+  "modelRiskScore": 0.05,
+  "derivedRiskScore": 0.0975,
+  "meta": {
+    "mode": "probe-sonnet-direct",
+    "model": "claude-sonnet-5",
+    "inputTokens": 18,
+    "outputTokens": 656,
+    "costUsd": 0.017806799999999998,
+    "wallMs": 7699,
+    "toolCalls": 0
+  }
+}

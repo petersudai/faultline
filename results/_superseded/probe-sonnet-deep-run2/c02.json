@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 4198,
+    "title": "fix(etag): fallback if `res.clone()` is not supported",
+    "baseSha": "53656e126df4855969afa55603cd063343d65552",
+    "headSha": "6f22acef362356c58ce071eaae9decea6ac1d6a4",
+    "filesChanged": 3,
+    "additions": 44,
+    "deletions": 11
+  },
+  "summary": "The PR adds a fallback path in the etag middleware: if `res.clone()` throws (e.g. AWS Lambda), it reads the whole body via `res.arrayBuffer()` and reconstructs `res`, then computes the digest from the ArrayBuffer instead of streaming. `digest.ts` was extended to accept either a stream or an ArrayBuffer, which is backward compatible for existing callers. The main risk is that the `try/catch` around `generateDigest(res.clone().body, ...)` is too broad — it will also swallow errors thrown by a custom `generateDigest` option or other unrelated failures (not just clone-unsupported), causing the middleware to silently re-buffer the whole body and retry rather than surfacing/propagating the original error, which changes error-handling behavior and adds unbounded memory buffering for large bodies in a case that isn't actually about clone support.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/middleware/etag/index.ts",
+      "line": 95,
+      "category": "error-handling",
+      "rationale": "The try/catch wraps both `res.clone()` and the subsequent `generateDigest` call. Any error thrown inside `generateDigest` (e.g. from a user-supplied `options.generateDigest` function, not just an unsupported clone()) will also trigger the fallback path, silently buffering the entire response body into memory and retrying digest generation, potentially masking a real bug in the custom generator and changing error-propagation behavior for streamed/large responses.",
+      "suggestedCheck": "Isolate the try/catch to only `res.clone()` (not the digest generation call) so generator errors still propagate normally, and add a test where a custom generateDigest throws to confirm the error surfaces rather than being masked by the fallback."
+    },
+    {
+      "severity": "low",
+      "file": "src/middleware/etag/index.ts",
+      "line": 99,
+      "category": "performance",
+      "rationale": "On fallback, the entire response body is loaded into memory via `res.arrayBuffer()` instead of being streamed, which could be a performance/memory concern for large responses in environments hitting this path repeatedly.",
+      "suggestedCheck": "Confirm this fallback is only expected to trigger rarely (Lambda-like envs) and document/verify memory implications for large bodies."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.25,
+  "derivedRiskScore": 0.2875,
+  "meta": {
+    "mode": "probe-sonnet-deep",
+    "model": "claude-sonnet-5",
+    "inputTokens": 10,
+    "outputTokens": 8466,
+    "costUsd": 0.16733175,
+    "wallMs": 89560,
+    "toolCalls": 5
+  }
+}

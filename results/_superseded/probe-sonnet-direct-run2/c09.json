@@ -1,0 +1,35 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3885,
+    "title": "fix(helper/adapter): correct `env` type",
+    "baseSha": "65edaf277a2dd3bb47406379904996ffdd3563e5",
+    "headSha": "a0b57dbe45d8aa72c890542ce1f3f73b755c98b4",
+    "filesChanged": 2,
+    "additions": 36,
+    "deletions": 12
+  },
+  "summary": "This is a small, type-only fix to the `env()` helper's generic signature to correctly infer bindings when either the `env<T>()` call or the `Hono<Env>` app has generics (or both). New type tests cover the three combinations. The main risk is subtle: the conditional type used to relax the parameter type is a tautology (T always extends its own constraint), so it always resolves to plain `Context`, which could weaken type inference for the return type in some usage patterns not covered by the added tests.</summary>\n</invoke>\n\n",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/helper/adapter/index.ts",
+      "line": null,
+      "category": "api-contract",
+      "rationale": "The parameter type `c: T extends Record<string, unknown> ? Context : C` is a conditional type where T always extends Record<string, unknown> (its constraint), so the condition is always true and resolves to just `Context` (untyped/generic Context) regardless of the actual C type argument passed. This means the parameter's type no longer depends on C, and callers passing a specifically-typed Context (e.g., Context<Env>) will have that binding information erased for type-checking purposes of the parameter itself, though the return type `T & C['env']` still uses C which is inferred separately from usage - this could cause C to fail to infer correctly from the argument since the parameter type is now the generic Context, potentially breaking the type inference that determines C for the return type in edge cases (e.g., when neither T nor Hono generics are provided).",
+      "suggestedCheck": "Manually verify with a Hono app that has no generics and no explicit env<T> call: `env(c)` in an untyped Hono app - check if it still returns `unknown` or `{}` for bindings as before, and that autocomplete/type-checking for the bindings object works in all three combinations (T only, Hono generics only, both, and neither)."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.12,
+  "derivedRiskScore": 0.25,
+  "meta": {
+    "mode": "probe-sonnet-direct",
+    "model": "claude-sonnet-5",
+    "inputTokens": 18,
+    "outputTokens": 657,
+    "costUsd": 0.0151743,
+    "wallMs": 8262,
+    "toolCalls": 0
+  }
+}

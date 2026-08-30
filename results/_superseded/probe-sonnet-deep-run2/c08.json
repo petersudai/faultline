@@ -1,0 +1,26 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3849,
+    "title": "fix(factory): correct the type of `factory.createMiddleware()`",
+    "baseSha": "3fba7a5e7d92cdb69c817dd15702508812305171",
+    "headSha": "dbfe2477ffdcb2eedf372ed32dd50b204aceb903",
+    "filesChanged": 2,
+    "additions": 43,
+    "deletions": 21
+  },
+  "summary": "This PR narrows default generic parameters on `Factory`/`createFactory` from `any` to `Env`/`string`, and adds an explicit return type annotation to `Factory.createMiddleware`. It's a type-only fix (no runtime logic changed — the function body still just returns the passed-in middleware), targeted at issue #3847 where the middleware's inferred type was too loose (falling back to `any`). New type-level tests were added to lock in the correct behavior.",
+  "findings": [],
+  "risk": "Low",
+  "modelRiskScore": 0.05,
+  "derivedRiskScore": 0,
+  "meta": {
+    "mode": "probe-sonnet-deep",
+    "model": "claude-sonnet-5",
+    "inputTokens": 8,
+    "outputTokens": 1114,
+    "costUsd": 0.0628224,
+    "wallMs": 14417,
+    "toolCalls": 3
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3832,
+    "title": "feat(etag): allow for custom hashing methods to be used to etag",
+    "baseSha": "6837649cd104b1886e6cb6653bf26d0700c4c3e6",
+    "headSha": "8fc6cfd20d261e44cb2adacfb0d2d9664f6c80b0",
+    "filesChanged": 3,
+    "additions": 50,
+    "deletions": 9
+  },
+  "summary": "This PR adds a `generateDigest` option to the etag middleware allowing custom hashing algorithms (e.g., SHA-256) instead of the hardcoded SHA-1, with tests validating the new behavior for the primary feature. The main risk is an unrelated, unexplained removal of `await c.res.blob()` in the 304 Not Modified path, which could reintroduce a previously-fixed stream-handling issue since no test covers this specific line's removal.",
+  "findings": [
+    {
+      "severity": "medium",
+      "file": "src/middleware/etag/index.ts",
+      "line": null,
+      "category": "breaking-change",
+      "rationale": "The line `await c.res.blob() // Force using body` was removed. This line was likely present to force consumption of the underlying stream (e.g., to avoid issues with unconsumed body streams / to properly release resources or ensure downstream middleware/adapters behave correctly) before replacing c.res with the 304 response. Removing it could reintroduce a bug it was fixing, or leave a stream unconsumed/hanging on some runtimes (e.g., Node, Deno, Bun) causing warnings or resource leaks. This change is unrelated to the stated feature (custom hashing) and not explained/tested.",
+      "suggestedCheck": "Verify why 'await c.res.blob()' was originally added (check git blame/history) and confirm removing it does not reintroduce a previously fixed issue with hanging streams or 304 responses in Node/Deno/Bun adapters. Add a regression test for the 304 path across runtimes."
+    },
+    {
+      "severity": "low",
+      "file": "src/middleware/etag/digest.ts",
+      "line": null,
+      "category": "api-contract",
+      "rationale": "generateDigest's signature is now exported/used with an additional required 'generator' parameter, changing its API contract. Since this is an internal module (not re-exported publicly per etag/index.ts), impact is likely limited to internal callers, but any other internal usage of digest.ts's generateDigest elsewhere would break if it exists.",
+      "suggestedCheck": "Search the codebase for any other imports of './digest' generateDigest to confirm all callers were updated."
+    },
+    {
+      "severity": "low",
+      "file": "src/middleware/etag/index.ts",
+      "line": null,
+      "category": "test-gap",
+      "rationale": "No test covers the removal of 'await c.res.blob()' behavior for the 304 path (e.g., verifying body stream is properly consumed/closed) after the refactor, so a subtle regression here could go unnoticed by CI.",
+      "suggestedCheck": "Add/confirm a test exercising the 304 Not Modified path end-to-end (including checking that the original response stream is not left open) across supported runtimes."
+    }
+  ],
+  "risk": "Medium",
+  "modelRiskScore": 0.25,
+  "derivedRiskScore": 0.3231,
+  "meta": {
+    "mode": "probe-sonnet-direct",
+    "model": "claude-sonnet-5",
+    "inputTokens": 18,
+    "outputTokens": 945,
+    "costUsd": 0.0241368,
+    "wallMs": 10486,
+    "toolCalls": 0
+  }
+}

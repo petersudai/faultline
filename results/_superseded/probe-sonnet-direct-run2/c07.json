@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3800,
+    "title": "fix(context): single body overrides other returns",
+    "baseSha": "fa6f51bb1b110cddc7dc41cb7e531fab27fe871f",
+    "headSha": "92a1a129e6e9f430f93e35d217a7bd2a324c85cb",
+    "filesChanged": 3,
+    "additions": 36,
+    "deletions": 11
+  },
+  "summary": "This PR is a type-level fix to Context.body()'s TypeScript overloads so that returning c.body(...) alongside other response builders (e.g., c.text, c.json) in a Hono app correctly narrows to a TypedResponse tagged 'body' in the RPC/client type inference, resolving issue #3798. The runtime implementation change is a straightforward type-cast refactor with no behavioral difference, and tests are updated/added to cover the type-level fix. Risk of breaking production behavior is very low; this is primarily a compile-time correctness fix.",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/context.ts",
+      "line": null,
+      "category": "api-contract",
+      "rationale": "The BodyRespond overloads now return Response & TypedResponse<..., 'body'> instead of plain Response. This is intentional (fixes issue #3798 where c.body() type wasn't distinguished from other response builders in the Hono client type inference), but any code relying on the previous exact return type of Response only (e.g. checking body type structurally) could see stricter/typed behavior. This is a type-level change only, no runtime behavior change, so risk is minimal.",
+      "suggestedCheck": "Verify downstream consumers (hono client type extraction, RPC types) handle the new TypedResponse<'body'> tag correctly across all route handlers using c.body, especially mixed-status routers similar to the added test."
+    },
+    {
+      "severity": "low",
+      "file": "src/context.test.ts",
+      "line": null,
+      "category": "test-gap",
+      "rationale": "Test change replaces checking c.res header state after multiple mutations with two independent c.body() calls; ensure this still exercises the original bug scenario (headers being cleared/reset) rather than accidentally not testing the interaction between mutated headers and cached response.",
+      "suggestedCheck": "Run the updated test suite and confirm coverage of the original issue where a single c.body() call was overridden by prior header/res mutations."
+    }
+  ],
+  "risk": "Low",
+  "modelRiskScore": 0.05,
+  "derivedRiskScore": 0.0975,
+  "meta": {
+    "mode": "probe-sonnet-direct",
+    "model": "claude-sonnet-5",
+    "inputTokens": 18,
+    "outputTokens": 692,
+    "costUsd": 0.0176043,
+    "wallMs": 9087,
+    "toolCalls": 0
+  }
+}

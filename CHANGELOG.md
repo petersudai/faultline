@@ -131,7 +131,7 @@ No single capability is a clean win.
    prints); `results/summary.md` pools all 36 observations and lands within
    0.01._
 
-## Cross-model check — output-format bug fixed; 1-seed probe
+## Cross-model check — output-format bug fixed; 2 Sonnet runs
 
 The first attempt stalled on reliability: the direct call emitted its answer as
 free-text JSON, which Sonnet 5 wraps past what `extractJson` recovers (5/12
@@ -140,15 +140,15 @@ now emits via a forced `submit_review` tool call (D21) — a 5-case Sonnet smoke
 test on the previously-failing cases returned 5/5 valid reviews.
 
 A pre-registered 1-seed Sonnet probe (`scripts/probe-sonnet.sh`, direct vs
-`--deep`, `eval/probe-verdict.ts` for the decision) is the cross-model data
-point. **Result: no reversal at 1 seed.** `--deep` now runs clean on Sonnet
-(0/12 errors, vs 2/12 non-termination before the port); the direct call still
-hit 2/12 schema-validation errors (Sonnet has no temp-0, so per-run error counts
-vary — the 5-case smoke had 0); neither config flags a revert "High" (recall 0),
-and `--deep` did not beat the direct call by the pre-registered margins (strict
-Δ +8 pp, at the one-case threshold; recall Δ 0; AUC-derived Δ +0.07). A full
-3-seed Sonnet run is **future work**; generalisation to a stronger model remains
-a **stated limitation**, not a claim.
+`--deep`, `eval/probe-verdict.ts` for the decision) was then run twice post-port
+(D22 — a spot-check for range, not a re-opened gate). **Across 2 Sonnet runs,
+`--deep` did not beat the direct call**: strict balanced accuracy 50% both runs
+vs the direct call's 42–58%, recall on reverts 0% both runs vs 0–17%;
+`probe-verdict.ts` returned NO REVERSAL each time (only the AUC-derived margin
+held, +0.07 — partly because `--deep` erred on 0/12 while the direct call still
+hits 1–2/12 schema-validation errors: Sonnet has no temp-0). A full multi-seed
+Sonnet gate is **future work**; generalisation to a stronger model remains a
+**stated limitation**, not a claim.
 
 ## Main failure mode (survives the final config)
 

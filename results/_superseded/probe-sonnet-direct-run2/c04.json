@@ -1,0 +1,43 @@
+{
+  "pr": {
+    "repo": "honojs/hono",
+    "number": 3171,
+    "title": "fix(helper/adapter): don't check `navigator` is `undefined`",
+    "baseSha": "0535579de5af90319165304be409ea9b7d5d47f3",
+    "headSha": "5c20ec4d764920eab85ae93d8c7113ebc2c6646f",
+    "filesChanged": 1,
+    "additions": 6,
+    "deletions": 2
+  },
+  "summary": "This is a small, targeted fix to runtime detection in getRuntimeKey(), replacing an explicit `typeof navigator !== 'undefined'` check with a try/catch around `navigator.userAgent` access to handle Cloudflare Pages' production environment where `navigator` throws instead of being undefined. The change is narrow and defensive (wrapped in try/catch), but lacks new tests for the specific edge case it fixes, and its correctness relies on subtle environment-specific behavior of referencing an undeclared global across different JS runtimes.</summary>\n</invoke>\n",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/helper/adapter/index.ts",
+      "line": null,
+      "category": "test-gap",
+      "rationale": "The fix changes runtime detection logic (removing the `typeof navigator !== 'undefined'` guard in favor of a try/catch) but no new tests were added to cover the case where `navigator` is undefined/throws vs. defined, which was the exact bug being fixed.",
+      "suggestedCheck": "Add a unit test that simulates an environment where accessing `navigator` throws a ReferenceError (e.g., deleting the global or using a Proxy) and verify getRuntimeKey() still returns the correct runtime without throwing."
+    },
+    {
+      "severity": "low",
+      "file": "src/helper/adapter/index.ts",
+      "line": null,
+      "category": "unhandled-edge-case",
+      "rationale": "Using `typeof navigator.userAgent` instead of `typeof navigator !== 'undefined' && ...` relies on `navigator` throwing a ReferenceError when undefined (in non-strict/global scope) rather than evaluating to undefined; if `navigator` is defined as `null` in some environment, `navigator.userAgent` would throw a TypeError, which is now caught the same way, so this should still work, but the behavior depends on environment-specific quirks that could vary across bundlers/runtimes (e.g., strict ESM modules referencing an undeclared global may still throw).",
+      "suggestedCheck": "Manually verify behavior across the target runtimes (Node, Deno, Bun, Cloudflare Workers, Cloudflare Pages, browsers) to confirm `navigator.userAgent` access is safely caught in all cases and does not silently produce a wrong runtime key."
+    }
+  ],
+  "risk": "Low",
+  "modelRiskScore": 0.1,
+  "derivedRiskScore": 0.0975,
+  "meta": {
+    "mode": "probe-sonnet-direct",
+    "model": "claude-sonnet-5",
+    "inputTokens": 18,
+    "outputTokens": 802,
+    "costUsd": 0.01498305,
+    "wallMs": 7995,
+    "toolCalls": 0
+  }
+}
