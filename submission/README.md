@@ -6,7 +6,7 @@ micro1 Agentic Workflows Hackathon. The four required items:
 |---|------|-------|
 | 1 | Complete solution code + improvement changelog | this repo (`src/`, `eval/`) + [`../CHANGELOG.md`](../CHANGELOG.md) |
 | 2 | Reproduction guide | [`../REPRODUCTION.md`](../REPRODUCTION.md) |
-| 3 | Solution video (≤5 min) | link in the HackerEarth submission; script: [`../VIDEO_SCRIPT.md`](../VIDEO_SCRIPT.md) |
+| 3 | Solution video (≤5 min) | link in the HackerEarth submission |
 | 4 | Agent trajectories | [`trajectories/`](trajectories/) (below) |
 
 Supporting: [`../SPEC.md`](../SPEC.md) (full design), [`../DESIGN_LOG.md`](../DESIGN_LOG.md)

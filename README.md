@@ -83,6 +83,29 @@ need the worked record: to show a reviewer why a PR was flagged, or to keep an
 audit trail. `--deep --second-pass` adds the removed-experiment critic pass; see
 `CHANGELOG.md`.
 
+## Future work
+
+- **Multi-seed Sonnet gate.** The pre-registered gate ran on Haiku; Sonnet was
+  spot-checked across two runs with no reversal. A full 3-seed Sonnet gate would
+  confirm or overturn the negative on a frontier model.
+- **Second repository / larger n.** All 12 cases are from `honojs/hono`. A
+  held-out repo (`vitejs/vite`, revert history already surveyed) would test
+  whether the finding generalises.
+- **Per-finding severity as an explicit rubric.** The risk label is
+  deterministic (`src/review/classify.ts`), but each finding's severity is a
+  soft judgment the model makes from a prose rubric. Converting that to an
+  explicit decision table would cut run-to-run severity variance and make each
+  rating traceable to the conditions that fired.
+- **Additional LLM providers.** Access is behind one `LlmLike` interface
+  (`FakeLlm` implements it for the offline tests), so OpenAI / Gemini / local is
+  a new adapter plus a pricing entry — each needing its own eval pass, since the
+  prompts and the deterministic-at-temp-0 behaviour are tuned to Claude Haiku
+  4.5.
+- **Known gaps.** The direct call still hard-fails schema validation on ~2/12
+  cases on `claude-sonnet-5`; the derived risk score's fixed weights are
+  slightly mis-tuned for the less-hedgy post-port findings mix (a one-line
+  calibration fix).
+
 ## Reproduce
 
 ```bash
